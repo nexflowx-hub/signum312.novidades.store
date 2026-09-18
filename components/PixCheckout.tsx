@@ -182,18 +182,7 @@ export default function PixCheckout() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            variant,
             reference: pix.reference,
-            customer: {
-              name: customer.name,
-              email: customer.email,
-              document: onlyDigits(customer.document),
-              phone: onlyDigits(customer.phone),
-            },
-            shipping: {
-              ...shipping,
-              cep: onlyDigits(shipping.cep),
-            },
           }),
         });
 
