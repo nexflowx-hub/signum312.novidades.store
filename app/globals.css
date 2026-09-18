@@ -1848,3 +1848,115 @@ summary:focus-visible {
   .product-visual { transform: rotate(-2deg) scale(.86); }
   .offer-grid { gap: 12px; }
 }
+
+
+/* Cross-device conversion hardening */
+button,
+a,
+summary,
+input,
+textarea {
+  touch-action: manipulation;
+}
+
+.hero-selector button,
+.choice-button,
+.buy-link,
+.cta,
+.copy-button,
+.pay-button,
+.sticky-buy button,
+.currency-pill,
+.success-home {
+  min-height: 44px;
+}
+
+@media (min-width: 681px) and (max-width: 1180px) {
+  .hero-grid {
+    grid-template-columns: minmax(0, 1.05fr) minmax(360px, .95fr);
+    gap: 28px;
+  }
+
+  .hero-copy h1 {
+    font-size: clamp(50px, 6.6vw, 72px);
+  }
+
+  .hero-product {
+    min-height: 560px;
+  }
+
+  .offer-grid {
+    gap: 14px;
+  }
+
+  .proof-photo {
+    min-height: 500px;
+  }
+
+  .checkout-grid {
+    width: min(1040px, calc(100% - 28px));
+  }
+}
+
+@media (max-width: 430px) {
+  .announcement-inner {
+    justify-content: center;
+    gap: 8px;
+    font-size: 9px;
+  }
+
+  .announcement-inner span:last-child,
+  .announcement-inner i:last-of-type {
+    display: none;
+  }
+
+  .hero-selector {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .hero-selector button:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .hero-selector button {
+    justify-content: center;
+    padding-inline: 12px;
+  }
+
+  .sticky-buy {
+    width: calc(100% - 14px);
+    border-radius: 14px;
+    bottom: 7px;
+  }
+
+  .sticky-buy button {
+    min-width: 108px;
+  }
+
+  .checkout-topbar {
+    gap: 10px;
+  }
+
+  .checkout-brand {
+    font-size: 12px;
+  }
+
+  .secure-mark {
+    white-space: nowrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
