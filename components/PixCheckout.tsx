@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { getAttribution, productPayload, track } from "@/lib/analytics";
@@ -125,8 +125,12 @@ export default function PixCheckout() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
   const [elapsed, setElapsed] = useState(0);
+  const [attribution, setAttribution] = useState<Record<string, string>>({});
   const pollingRef = useRef<number | null>(null);
-  const attribution = useMemo(() => getAttribution(), []);
+
+  useEffect(() => {
+    setAttribution(getAttribution());
+  }, []);
 
   const shippingValue = (config?.shippingCents ?? 0) / 100;
   const totalValue = product.price + shippingValue;
