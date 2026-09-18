@@ -944,3 +944,111 @@ footer { background: #050605; color: #80847c; padding: 38px 0 90px; }
   .footer-links { gap: 14px; }
   .sticky-buy { bottom: 8px; }
 }
+
+
+/* Real product proof */
+.proof-section {
+  padding: 110px 0;
+  background: #ddd6c9;
+}
+.proof-heading {
+  display: grid;
+  grid-template-columns: 1fr .8fr;
+  align-items: end;
+  gap: 70px;
+  margin-bottom: 48px;
+}
+.proof-heading h2 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(44px, 5.8vw, 72px);
+  line-height: .98;
+  font-weight: 400;
+  letter-spacing: -.045em;
+}
+.proof-heading > p {
+  margin: 0 0 7px;
+  color: #686a64;
+  line-height: 1.75;
+}
+.proof-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 18px;
+}
+.proof-grid figure {
+  margin: 0;
+  padding: 14px;
+  border: 1px solid rgba(20,25,20,.12);
+  background: rgba(255,255,255,.35);
+  border-radius: 22px;
+}
+.proof-photo {
+  min-height: 560px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 15px;
+  background:
+    radial-gradient(circle at 50% 35%,rgba(188,160,112,.16),transparent 33%),
+    linear-gradient(145deg,#171a17,#090a09);
+}
+.proof-grid figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 18px 8px 7px;
+}
+.proof-grid figcaption strong {
+  font-family: Georgia, serif;
+  font-size: 25px;
+  font-weight: 400;
+}
+.proof-grid figcaption span {
+  color: #6d7069;
+  font-size: 12px;
+}
+
+.product-photo {
+  position: relative;
+  width: min(390px, 78%);
+  z-index: 2;
+}
+.product-photo.compact { width: min(240px, 76%); }
+.product-photo-frame {
+  position: relative;
+  z-index: 2;
+  overflow: hidden;
+  border-radius: 18px;
+  transform: rotate(-1.8deg);
+  box-shadow: 0 30px 70px rgba(0,0,0,.45);
+}
+.product-photo.gold .product-photo-frame { transform: rotate(1.8deg); }
+.product-photo-frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.product-photo-glow {
+  position: absolute;
+  z-index: 1;
+  width: 78%;
+  height: 70%;
+  left: 11%;
+  top: 15%;
+  border-radius: 50%;
+  filter: blur(55px);
+  background: rgba(70,127,105,.26);
+}
+.product-photo.gold .product-photo-glow {
+  background: rgba(190,139,66,.27);
+}
+
+@media (max-width: 760px) {
+  .proof-section { padding: 76px 0; }
+  .proof-heading { grid-template-columns: 1fr; gap: 18px; }
+  .proof-heading h2 { font-size: 44px; }
+  .proof-grid { grid-template-columns: 1fr; }
+  .proof-photo { min-height: 465px; }
+  .product-photo { width: min(330px, 84%); }
+}
