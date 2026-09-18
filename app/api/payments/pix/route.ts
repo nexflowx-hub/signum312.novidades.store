@@ -5,6 +5,13 @@ import {
   XPaymentsError,
   type ShippingAddress,
 } from "@/lib/xpayments";
+import {
+  CommerceError,
+  createOrderReference,
+  createPendingOrder,
+  markOrderPaymentFailed,
+  recordPendingPayment,
+} from "@/lib/commerce";
 import { getBrlShippingCents, XPAYMENTS_STORES } from "@/lib/checkout-config";
 import { variants, type VariantId } from "@/lib/products";
 import {
@@ -16,20 +23,6 @@ import {
 
 function validEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-function referenceFor(variant: VariantId) {
-  const stamp = Date.now().toString(36).toUpperCase();
-  const random = crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
-
-  return (
-    "SIGNUM312-" +
-    variant.toUpperCase() +
-    "-" +
-    stamp +
-    "-" +
-    random
-  ).slice(0, 96);
 }
 
 function readShipping(value: any): ShippingAddress {
@@ -45,6 +38,8 @@ function readShipping(value: any): ShippingAddress {
 }
 
 export async function POST(request: Request) {
+  let reference = "";
+
   try {
     const body = await request.json().catch(() => ({}));
     const variant = String(body?.variant || "") as VariantId;
@@ -177,9 +172,10 @@ export async function POST(request: Request) {
       }
     }
 
-    const reference = referenceFor(variant);
+    reference = createOrderReference(variant);
 
-    const payload = await createPixCharge({
+    // Commerce Core creates the order first and resolves the server-side price.
+    const order = await createPendingOrder({
       variant,
       reference,
       customer: { name, email, document, phone },
@@ -188,9 +184,30 @@ export async function POST(request: Request) {
       attribution,
     });
 
+    let payload: any;
+
+    try {
+      payload = await createPixCharge({
+        variant,
+        reference: order.reference,
+        customer: { name, email, document, phone },
+        shipping,
+        shippingCents: order.shippingCents,
+        amountCents: order.totalCents,
+        sku: order.sku,
+        edition: order.edition,
+        attribution,
+      });
+    } catch (error) {
+      await markOrderPaymentFailed(order.reference);
+      throw error;
+    }
+
     const pix = normalizePixAction(payload);
 
     if (!pix.copyPaste) {
+      await markOrderPaymentFailed(order.reference);
+
       return NextResponse.json(
         {
           success: false,
@@ -204,22 +221,47 @@ export async function POST(request: Request) {
       );
     }
 
-    const subtotalCents = Math.round(variants[variant].price * 100);
-    const totalCents = subtotalCents + shippingCents;
+    try {
+      await recordPendingPayment({
+        order,
+        transactionId: pix.transactionId,
+        providerPayload: {
+          transactionId: pix.transactionId,
+          reference: pix.reference,
+          status: pix.status,
+          expiresAt: pix.expiresAt,
+        },
+      });
+    } catch (error) {
+      // A valid PIX already exists. Do not hide it from the customer because a
+      // secondary persistence step failed; XPAYMENTS + order reference allow reconciliation.
+      console.error("[SIGNUM_PAYMENT_RECORD_ERROR]", error);
+    }
 
     return NextResponse.json({
       success: true,
       data: {
         ...pix,
         variant,
-        subtotal: subtotalCents / 100,
-        shipping: shippingCents / 100,
-        amount: totalCents / 100,
+        orderId: order.orderId,
+        subtotal: order.subtotalCents / 100,
+        shipping: order.shippingCents / 100,
+        amount: order.totalCents / 100,
         currency: "BRL",
         store: XPAYMENTS_STORES.BRL,
       },
     });
   } catch (error) {
+    if (error instanceof CommerceError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        { status: error.status },
+      );
+    }
+
     if (error instanceof XPaymentsError) {
       return NextResponse.json(
         {
@@ -230,7 +272,10 @@ export async function POST(request: Request) {
       );
     }
 
-    console.error("[SIGNUM_PIX_CREATE_ERROR]", error);
+    console.error("[SIGNUM_PIX_CREATE_ERROR]", {
+      reference: reference || undefined,
+      error,
+    });
 
     return NextResponse.json(
       {
