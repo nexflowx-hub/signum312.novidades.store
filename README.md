@@ -7,8 +7,10 @@ Conversion-first single-product funnel for `signum312.novidades.store`.
 - Next.js App Router + TypeScript
 - Mobile-first funnel
 - Native BRL checkout
+- Shared Supabase Commerce Core
+- Commerce storefront: **SIGNUM312-BR**
 - XPAYMENTS S2S PIX
-- Store: **NOVIDADES-BRL**
+- Payment Store: **NOVIDADES-BRL**
 - Reserved international Store: **NOVIDADES-EURO**
 - Real product proof images
 - Campaign-aware hero copy
@@ -29,8 +31,13 @@ npm run dev
 ```text
 NEXT_PUBLIC_SITE_URL=https://signum312.novidades.store
 
+NEXT_PUBLIC_SUPABASE_URL=https://eivqvrfsreaopzlvhadu.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<server-only service role>
+COMMERCE_STOREFRONT_CODE=SIGNUM312-BR
+
 XPAYMENTS_API_URL=https://api.xpayments.digital/api/v1
 XPAYMENTS_BRL_API_KEY=<LIVE API KEY bound to NOVIDADES-BRL>
+XPAYMENTS_BRL_STORE=NOVIDADES-BRL
 
 BRL_SHIPPING_CENTS=<integer cents; use 0 for free shipping>
 
@@ -52,9 +59,10 @@ Ad
   -> select Pátina / Dourada / Duo
   -> /checkout?variant=...
   -> contact + CPF/CNPJ + delivery address
-  -> server validates product price + shipping
+  -> server reads listing/variant price from shared Commerce Core
+  -> server creates pending order in Supabase
   -> POST /api/payments/pix
-  -> server POSTs to XPAYMENTS /api/v1/payments/charge
+  -> server POSTs the server-calculated total to XPAYMENTS /api/v1/payments/charge
   -> Store NOVIDADES-BRL
   -> PIX S2S
   -> QR Code / Copia e Cola
@@ -81,12 +89,15 @@ XPAYMENTS should persist this metadata on the Transaction so paid orders can be 
 
 The browser never chooses an amount.
 
-Server price catalog:
+The payment route resolves the active variant price from the shared Supabase
+`listing_prices` records for storefront `SIGNUM312-BR`.
+
+Current published prices:
 - Pátina: R$ 99,90
 - Dourada: R$ 89,90
 - Duo: R$ 169,90
 
-Shipping is also loaded from server environment. If `BRL_SHIPPING_CENTS` is not configured, checkout blocks payment creation.
+Shipping is also loaded server-side from the environment. If `BRL_SHIPPING_CENTS` is not configured, checkout blocks payment creation.
 
 ## Campaign message match
 
