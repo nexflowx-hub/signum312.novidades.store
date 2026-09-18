@@ -212,7 +212,7 @@ export default function PixCheckout() {
 
       <div className="checkout-grid">
         <section className="checkout-main">
-          <div className="checkout-kicker">ARTE&VIDA · NOVICADES.STORE</div>
+          <div className="checkout-kicker">ARTE&VIDA · NOVIDADES.STORE</div>
 
           {step === "form" && (
             <>
