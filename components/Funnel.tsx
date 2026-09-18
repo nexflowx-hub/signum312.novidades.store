@@ -20,10 +20,17 @@ export default function Funnel() {
 
   useEffect(() => {
     const attribution = getAttribution();
+    const requestedVariant = new URL(window.location.href).searchParams.get("variant");
+    const initialVariant: VariantId =
+      requestedVariant === "gold" || requestedVariant === "duo"
+        ? requestedVariant
+        : "patina";
+
+    setSelected(initialVariant);
     track("page_view", { page: "signum312", ...attribution });
     track(
       "view_content",
-      productPayload("patina", variants.patina.price, attribution),
+      productPayload(initialVariant, variants[initialVariant].price, attribution),
     );
 
     const onScroll = () => setSticky(window.scrollY > 620);
