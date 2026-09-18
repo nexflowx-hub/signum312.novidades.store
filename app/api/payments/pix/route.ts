@@ -1,10 +1,18 @@
 import { NextResponse } from "next/server";
-import { createPixCharge, normalizePixAction, XPaymentsError } from "@/lib/xpayments";
+import {
+  createPixCharge,
+  normalizePixAction,
+  XPaymentsError,
+  type ShippingAddress,
+} from "@/lib/xpayments";
+import { getBrlShippingCents, XPAYMENTS_STORES } from "@/lib/checkout-config";
 import { variants, type VariantId } from "@/lib/products";
-
-function cleanDocument(value: unknown) {
-  return String(value || "").replace(/\D/g, "");
-}
+import {
+  isValidBrazilPhone,
+  isValidCep,
+  isValidTaxId,
+  onlyDigits,
+} from "@/lib/validators";
 
 function validEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -13,7 +21,27 @@ function validEmail(value: string) {
 function referenceFor(variant: VariantId) {
   const stamp = Date.now().toString(36).toUpperCase();
   const random = crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
-  return ("SIGNUM312-" + variant.toUpperCase() + "-" + stamp + "-" + random).slice(0, 96);
+
+  return (
+    "SIGNUM312-" +
+    variant.toUpperCase() +
+    "-" +
+    stamp +
+    "-" +
+    random
+  ).slice(0, 96);
+}
+
+function readShipping(value: any): ShippingAddress {
+  return {
+    cep: onlyDigits(value?.cep).slice(0, 8),
+    street: String(value?.street || "").trim().slice(0, 160),
+    number: String(value?.number || "").trim().slice(0, 30),
+    complement: String(value?.complement || "").trim().slice(0, 80),
+    neighborhood: String(value?.neighborhood || "").trim().slice(0, 120),
+    city: String(value?.city || "").trim().slice(0, 120),
+    state: String(value?.state || "").trim().toUpperCase().slice(0, 2),
+  };
 }
 
 export async function POST(request: Request) {
@@ -23,32 +51,106 @@ export async function POST(request: Request) {
 
     if (!variants[variant]) {
       return NextResponse.json(
-        { success: false, error: { code: "INVALID_VARIANT", message: "Produto inválido." } },
+        {
+          success: false,
+          error: { code: "INVALID_VARIANT", message: "Produto inválido." },
+        },
         { status: 400 },
       );
     }
 
-    const name = String(body?.customer?.name || "").trim().replace(/\s+/g, " ");
-    const email = String(body?.customer?.email || "").trim().toLowerCase();
-    const document = cleanDocument(body?.customer?.document);
+    const shippingCents = getBrlShippingCents();
 
-    if (name.length < 3) {
+    if (shippingCents === null) {
       return NextResponse.json(
-        { success: false, error: { code: "NAME_REQUIRED", message: "Informe o nome completo." } },
+        {
+          success: false,
+          error: {
+            code: "SHIPPING_NOT_CONFIGURED",
+            message:
+              "A política de frete do Brasil ainda não foi configurada. A compra não foi criada.",
+          },
+        },
+        { status: 503 },
+      );
+    }
+
+    const name = String(body?.customer?.name || "")
+      .trim()
+      .replace(/\s+/g, " ");
+    const email = String(body?.customer?.email || "").trim().toLowerCase();
+    const document = onlyDigits(body?.customer?.document);
+    const phone = onlyDigits(body?.customer?.phone);
+    const shipping = readShipping(body?.shipping);
+
+    if (name.length < 3 || !name.includes(" ")) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "NAME_REQUIRED",
+            message: "Informe o nome completo.",
+          },
+        },
         { status: 400 },
       );
     }
 
     if (!validEmail(email)) {
       return NextResponse.json(
-        { success: false, error: { code: "EMAIL_INVALID", message: "Informe um e-mail válido." } },
+        {
+          success: false,
+          error: {
+            code: "EMAIL_INVALID",
+            message: "Informe um e-mail válido.",
+          },
+        },
         { status: 400 },
       );
     }
 
-    if (document.length !== 11 && document.length !== 14) {
+    if (!isValidTaxId(document)) {
       return NextResponse.json(
-        { success: false, error: { code: "DOCUMENT_INVALID", message: "Informe um CPF ou CNPJ válido." } },
+        {
+          success: false,
+          error: {
+            code: "DOCUMENT_INVALID",
+            message: "Informe um CPF ou CNPJ válido.",
+          },
+        },
+        { status: 400 },
+      );
+    }
+
+    if (!isValidBrazilPhone(phone)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "PHONE_INVALID",
+            message: "Informe um telefone brasileiro válido com DDD.",
+          },
+        },
+        { status: 400 },
+      );
+    }
+
+    if (
+      !isValidCep(shipping.cep) ||
+      !shipping.street ||
+      !shipping.number ||
+      !shipping.neighborhood ||
+      !shipping.city ||
+      !/^[A-Z]{2}$/.test(shipping.state)
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "SHIPPING_INVALID",
+            message: "Confira o endereço de entrega.",
+          },
+        },
         { status: 400 },
       );
     }
@@ -69,16 +171,20 @@ export async function POST(request: Request) {
 
     for (const key of allowedAttribution) {
       const value = rawAttribution[key];
+
       if (typeof value === "string" && value.trim()) {
         attribution[key] = value.trim().slice(0, 180);
       }
     }
 
     const reference = referenceFor(variant);
+
     const payload = await createPixCharge({
       variant,
       reference,
-      customer: { name, email, document },
+      customer: { name, email, document, phone },
+      shipping,
+      shippingCents,
       attribution,
     });
 
@@ -90,20 +196,27 @@ export async function POST(request: Request) {
           success: false,
           error: {
             code: "PIX_QR_MISSING",
-            message: "O PIX foi criado, mas o código de pagamento não foi recebido.",
+            message:
+              "O PIX foi criado, mas o código de pagamento não foi recebido.",
           },
         },
         { status: 502 },
       );
     }
 
+    const subtotalCents = Math.round(variants[variant].price * 100);
+    const totalCents = subtotalCents + shippingCents;
+
     return NextResponse.json({
       success: true,
       data: {
         ...pix,
         variant,
-        amount: variants[variant].price,
+        subtotal: subtotalCents / 100,
+        shipping: shippingCents / 100,
+        amount: totalCents / 100,
         currency: "BRL",
+        store: XPAYMENTS_STORES.BRL,
       },
     });
   } catch (error) {
