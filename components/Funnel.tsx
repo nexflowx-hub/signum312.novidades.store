@@ -53,45 +53,30 @@ export default function Funnel() {
     );
   }
 
-  async function checkout(id: VariantId = selected) {
-    setLoading(true);
-    setCheckoutError("");
-
+  function checkout(id: VariantId = selected) {
     const chosen = variants[id];
     const attribution = getAttribution();
 
     track(
       "add_to_cart",
-      productPayload(id, chosen.price, attribution),
+      productPayload(id, chosen.price, {
+        currency: "BRL",
+        ...attribution,
+      }),
     );
     track(
       "initiate_checkout",
-      productPayload(id, chosen.price, attribution),
+      productPayload(id, chosen.price, {
+        currency: "BRL",
+        payment_method: "pix",
+        ...attribution,
+      }),
     );
 
-    try {
-      const response = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ variant: id, attribution }),
-      });
-
-      const body = await response.json();
-      if (!response.ok || !body.url) {
-        throw new Error(body.message || "Checkout ainda não configurado.");
-      }
-
-      window.location.assign(body.url);
-    } catch (error) {
-      setCheckoutError(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível abrir o checkout agora.",
-      );
-      document.querySelector("#oferta")?.scrollIntoView({ behavior: "smooth" });
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true);
+    window.location.assign(
+      "/checkout?variant=" + encodeURIComponent(id) + "&currency=BRL",
+    );
   }
 
   return (
