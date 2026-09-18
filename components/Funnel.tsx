@@ -303,6 +303,43 @@ export default function Funnel() {
         </div>
       </section>
 
+      <section className="proof-section">
+        <div className="shell">
+          <div className="proof-heading">
+            <div>
+              <p className="eyebrow">O PRODUTO REAL</p>
+              <h2>Sem render esconder o que você recebe.</h2>
+            </div>
+            <p>
+              Estas são fotografias reais das unidades do lote em teste.
+              A apresentação final receberá novos packshots e embalagem própria,
+              mas a peça que está sendo validada é esta.
+            </p>
+          </div>
+
+          <div className="proof-grid">
+            <figure>
+              <div className="proof-photo">
+                <ProductVisual tone="patina" mode="real" />
+              </div>
+              <figcaption>
+                <strong>Edição Pátina</strong>
+                <span>Acabamento escuro com nuances verde-pátina.</span>
+              </figcaption>
+            </figure>
+            <figure>
+              <div className="proof-photo">
+                <ProductVisual tone="gold" mode="real" />
+              </div>
+              <figcaption>
+                <strong>Edição Dourada</strong>
+                <span>Dourado envelhecido e leitura mais clássica.</span>
+              </figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
       <section className="detail-section section-dark">
         <div className="shell detail-grid">
           <div className="detail-visual">
