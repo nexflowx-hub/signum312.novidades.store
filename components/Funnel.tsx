@@ -5,38 +5,137 @@ import { getAttribution, productPayload, track } from "@/lib/analytics";
 import { formatBRL, variants, type VariantId } from "@/lib/products";
 import { ProductVisual } from "./ProductVisual";
 
+type HeroMessage = {
+  kicker: string;
+  line1: string;
+  line2: string;
+  lead: string;
+  initialVariant: VariantId;
+};
+
+const DEFAULT_HERO: HeroMessage = {
+  kicker: "ARTE&VIDA · COLLECTION I",
+  line1: "Esta expressão atravessou",
+  line2: "mais de 1.700 anos.",
+  lead:
+    "SIGNUM 312 é uma coleção contemporânea inspirada em fé, coragem e propósito — criada para quem prefere carregar significado.",
+  initialVariant: "patina",
+};
+
+function messageForCampaign(params: URLSearchParams): HeroMessage {
+  const creative = [
+    params.get("utm_content"),
+    params.get("creative"),
+    params.get("ad"),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (creative.includes("a2") || creative.includes("simbolo")) {
+    return {
+      kicker: "SIGNUM 312 · EDIÇÃO PÁTINA",
+      line1: "Não é apenas",
+      line2: "um colar. É um símbolo.",
+      lead:
+        "Uma peça de presença rústica, criada para representar aquilo que você escolhe levar consigo.",
+      initialVariant: "patina",
+    };
+  }
+
+  if (creative.includes("a3") || creative.includes("constantino")) {
+    return {
+      kicker: "ROMA · 312 d.C.",
+      line1: "Um sinal antes",
+      line2: "de uma batalha decisiva.",
+      lead:
+        "A tradição de Constantino atravessou séculos. SIGNUM 312 transforma esse universo simbólico numa peça contemporânea.",
+      initialVariant: "patina",
+    };
+  }
+
+  if (creative.includes("a4") || creative.includes("gold") || creative.includes("dour")) {
+    return {
+      kicker: "SIGNUM 312 · EDIÇÃO DOURADA",
+      line1: "Alguns símbolos",
+      line2: "não precisam de explicação.",
+      lead:
+        "Dourado envelhecido, cruz em relevo e uma presença discreta para usar todos os dias.",
+      initialVariant: "gold",
+    };
+  }
+
+  if (creative.includes("a5") || creative.includes("duo")) {
+    return {
+      kicker: "SIGNUM 312 · DUO",
+      line1: "Duas versões.",
+      line2: "Um mesmo significado.",
+      lead:
+        "Pátina e Dourada juntas — para escolher conforme o momento ou transformar a coleção em presente.",
+      initialVariant: "duo",
+    };
+  }
+
+  if (creative.includes("a6") || creative.includes("hoc-signo")) {
+    return {
+      kicker: "IN HOC SIGNO VINCES",
+      line1: "Com este sinal",
+      line2: "vencerás.",
+      lead:
+        "Uma expressão ligada há séculos à tradição cristã, reinterpretada numa coleção contemporânea.",
+      initialVariant: "patina",
+    };
+  }
+
+  return DEFAULT_HERO;
+}
+
 const trust = [
-  ["Compra protegida", "Fluxo de pagamento seguro"],
-  ["Envio rastreável", "Acompanhamento após a expedição"],
-  ["7 dias para desistir", "Conforme regras aplicáveis ao e-commerce"],
+  ["Pagamento protegido", "PIX processado por XPAYMENTS"],
+  ["Pedido identificado", "Referência única por compra"],
+  ["7 dias para desistir", "Conforme regras do e-commerce"],
 ];
 
 export default function Funnel() {
   const [selected, setSelected] = useState<VariantId>("patina");
+  const [heroMessage, setHeroMessage] = useState<HeroMessage>(DEFAULT_HERO);
   const [sticky, setSticky] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [checkoutError, setCheckoutError] = useState("");
   const variant = variants[selected];
 
   useEffect(() => {
+    const url = new URL(window.location.href);
     const attribution = getAttribution();
-    const requestedVariant = new URL(window.location.href).searchParams.get("variant");
-    const initialVariant: VariantId =
-      requestedVariant === "gold" || requestedVariant === "duo"
-        ? requestedVariant
-        : "patina";
+    const campaignMessage = messageForCampaign(url.searchParams);
+    const requestedVariant = url.searchParams.get("variant");
 
+    const initialVariant: VariantId =
+      requestedVariant === "gold" || requestedVariant === "duo" || requestedVariant === "patina"
+        ? requestedVariant
+        : campaignMessage.initialVariant;
+
+    setHeroMessage(campaignMessage);
     setSelected(initialVariant);
+
     track("page_view", { page: "signum312", ...attribution });
     track(
       "view_content",
       productPayload(initialVariant, variants[initialVariant].price, attribution),
     );
 
-    const onScroll = () => setSticky(window.scrollY > 620);
+    const onScroll = () => {
+      const threshold = Math.max(520, window.innerHeight * 0.72);
+      setSticky(window.scrollY > threshold);
+    };
+
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    window.addEventListener("resize", onScroll);
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
   }, []);
 
   const separateTotal = useMemo(
@@ -44,9 +143,10 @@ export default function Funnel() {
     [],
   );
 
+  const duoSaving = separateTotal - variants.duo.price;
+
   function selectVariant(id: VariantId) {
     setSelected(id);
-    setCheckoutError("");
     track(
       "select_variant",
       productPayload(id, variants[id].price, getAttribution()),
@@ -81,24 +181,39 @@ export default function Funnel() {
 
   return (
     <main>
-      <section className="hero section-dark">
+      <section className="hero section-dark" id="top">
         <div className="ambient ambient-one" />
         <div className="ambient ambient-two" />
+
+        <div className="announcement">
+          <div className="shell announcement-inner">
+            <span>Compra online protegida</span>
+            <i />
+            <span>PIX via XPAYMENTS</span>
+            <i />
+            <span>Brasil</span>
+          </div>
+        </div>
 
         <nav className="topbar shell">
           <a className="brand" href="#top" aria-label="SIGNUM 312">
             <span className="brand-cross">✦</span>
-            <span>SIGNUM <strong>312</strong></span>
+            <span>
+              SIGNUM <strong>312</strong>
+            </span>
           </a>
-          <a href="#historia" className="nav-link">A história</a>
+          <div className="nav-actions">
+            <a href="#oferta" className="nav-link">Edições</a>
+            <a href="#historia" className="nav-link">A história</a>
+          </div>
         </nav>
 
-        <div className="hero-grid shell" id="top">
+        <div className="hero-grid shell">
           <div className="hero-copy">
-            <p className="eyebrow">ARTE&VIDA · COLLECTION I</p>
+            <p className="eyebrow">{heroMessage.kicker}</p>
             <h1>
-              Esta frase atravessou
-              <span>mais de 1.700 anos.</span>
+              {heroMessage.line1}
+              <span>{heroMessage.line2}</span>
             </h1>
 
             <div className="latin-lockup">
@@ -106,53 +221,58 @@ export default function Funnel() {
               <span>Com este sinal vencerás.</span>
             </div>
 
-            <p className="hero-lead">
-              Uma coleção contemporânea inspirada em fé, coragem e propósito —
-              criada para quem prefere carregar significado.
-            </p>
+            <p className="hero-lead">{heroMessage.lead}</p>
 
             <div className="hero-selector" aria-label="Escolha sua edição">
               <button
                 className={selected === "patina" ? "active" : ""}
                 onClick={() => selectVariant("patina")}
+                type="button"
               >
                 <span className="swatch swatch-patina" />
-                Pátina
+                <span>Pátina</span>
+                <small>{formatBRL(variants.patina.price)}</small>
               </button>
               <button
                 className={selected === "gold" ? "active" : ""}
                 onClick={() => selectVariant("gold")}
+                type="button"
               >
                 <span className="swatch swatch-gold" />
-                Dourada
+                <span>Dourada</span>
+                <small>{formatBRL(variants.gold.price)}</small>
               </button>
               <button
                 className={selected === "duo" ? "active" : ""}
                 onClick={() => selectVariant("duo")}
+                type="button"
               >
                 <span className="swatch swatch-duo" />
-                Duo
+                <span>Duo</span>
+                <small>{formatBRL(variants.duo.price)}</small>
               </button>
             </div>
 
             <div className="hero-buy">
               <div>
-                <span className="price-label">Preço de lançamento</span>
+                <span className="price-label">Sua edição</span>
                 <strong>{formatBRL(variant.price)}</strong>
               </div>
               <button
                 className="cta cta-primary"
                 onClick={() => checkout()}
                 disabled={loading}
+                type="button"
               >
-                {loading ? "Abrindo checkout..." : "Escolher o meu"}
+                {loading ? "Abrindo checkout..." : "Comprar com PIX"}
                 <span>→</span>
               </button>
             </div>
 
-            <p className="microcopy">
-              Frete calculado no checkout · PIX e cartão conforme disponibilidade
-            </p>
+            <div className="hero-reassurance">
+              <span>✓ Valor confirmado antes do pagamento</span>
+              <span>✓ QR Code gerado no checkout</span>
+            </div>
           </div>
 
           <div
@@ -173,9 +293,10 @@ export default function Funnel() {
             ) : (
               <ProductVisual tone={selected === "gold" ? "gold" : "patina"} />
             )}
-            <span className="visual-caption">
-              Representação visual provisória · substituir por fotografia final
-            </span>
+
+            <a className="real-photo-link" href="#produto-real">
+              Ver fotografias reais <span>↓</span>
+            </a>
           </div>
         </div>
 
@@ -192,6 +313,64 @@ export default function Funnel() {
         </div>
       </section>
 
+      <section className="offer-section offer-section-first" id="oferta">
+        <div className="shell">
+          <div className="section-heading offer-heading">
+            <div>
+              <p className="eyebrow">ESCOLHA A SUA EDIÇÃO</p>
+              <h2>Qual delas representa você?</h2>
+            </div>
+            <p>
+              O desenho base é o mesmo. O acabamento muda completamente a presença da peça.
+              No Duo, você recebe as duas versões com economia de {formatBRL(duoSaving)}.
+            </p>
+          </div>
+
+          <div className="offer-grid">
+            <OfferCard
+              id="patina"
+              selected={selected === "patina"}
+              onSelect={selectVariant}
+              onBuy={checkout}
+              visual={<ProductVisual tone="patina" compact mode="real" />}
+              badge="EDIÇÃO DESTAQUE"
+            />
+
+            <OfferCard
+              id="gold"
+              selected={selected === "gold"}
+              onSelect={selectVariant}
+              onBuy={checkout}
+              visual={<ProductVisual tone="gold" compact mode="real" />}
+            />
+
+            <OfferCard
+              id="duo"
+              selected={selected === "duo"}
+              onSelect={selectVariant}
+              onBuy={checkout}
+              visual={
+                <div className="mini-duo">
+                  <ProductVisual tone="patina" compact mode="real" />
+                  <ProductVisual tone="gold" compact mode="real" />
+                </div>
+              }
+              badge="MELHOR VALOR"
+              note={
+                "Economize " +
+                formatBRL(duoSaving) +
+                " · Separadas: " +
+                formatBRL(separateTotal)
+              }
+            />
+          </div>
+
+          <p className="offer-footnote">
+            O pagamento BRL é concluído por PIX no checkout próprio da SIGNUM 312.
+          </p>
+        </div>
+      </section>
+
       <section className="story-section" id="historia">
         <div className="shell story-grid">
           <div className="story-year" aria-hidden="true">312</div>
@@ -199,19 +378,18 @@ export default function Funnel() {
             <p className="eyebrow">ROMA · 312 d.C.</p>
             <h2>Um sinal antes de uma batalha decisiva.</h2>
             <p>
-              A tradição cristã associa a campanha de Constantino contra
-              Maxêncio a uma experiência religiosa anterior à Batalha da Ponte
-              Mílvio. Ao longo dos séculos, essa tradição ficou ligada à
-              expressão <strong>“In Hoc Signo Vinces”</strong> — “Com este sinal
-              vencerás”.
+              A tradição cristã associa a campanha de Constantino contra Maxêncio
+              a uma experiência religiosa anterior à Batalha da Ponte Mílvio.
+              Ao longo dos séculos, essa tradição ficou ligada à expressão{" "}
+              <strong>“In Hoc Signo Vinces”</strong> — “Com este sinal vencerás”.
             </p>
             <p>
               SIGNUM 312 não é uma relíquia nem uma reprodução arqueológica.
               É uma interpretação contemporânea desse universo simbólico:
               uma peça sobre aquilo que você escolhe levar consigo.
             </p>
-            <a href="#oferta" className="text-link">
-              Ver as duas edições <span>→</span>
+            <a href="#produto-real" className="text-link">
+              Ver a peça real <span>→</span>
             </a>
           </div>
         </div>
@@ -236,76 +414,22 @@ export default function Funnel() {
             <article>
               <span>03</span>
               <h3>Propósito</h3>
-              <p>
-                Um objeto ganha valor quando representa algo maior que ele próprio.
-              </p>
+              <p>Um objeto ganha valor quando representa algo maior que ele próprio.</p>
             </article>
           </div>
         </div>
       </section>
 
-      <section className="offer-section" id="oferta">
-        <div className="shell">
-          <div className="section-heading">
-            <p className="eyebrow">ESCOLHA A SUA EDIÇÃO</p>
-            <h2>Duas interpretações. O mesmo significado.</h2>
-            <p>
-              Comece pela estética que mais representa você — ou leve as duas.
-            </p>
-          </div>
-
-          <div className="offer-grid">
-            <OfferCard
-              id="patina"
-              selected={selected === "patina"}
-              onSelect={selectVariant}
-              onBuy={checkout}
-              visual={<ProductVisual tone="patina" compact />}
-              badge="MAIS DISTINTIVA"
-            />
-            <OfferCard
-              id="gold"
-              selected={selected === "gold"}
-              onSelect={selectVariant}
-              onBuy={checkout}
-              visual={<ProductVisual tone="gold" compact />}
-            />
-            <OfferCard
-              id="duo"
-              selected={selected === "duo"}
-              onSelect={selectVariant}
-              onBuy={checkout}
-              visual={
-                <div className="mini-duo">
-                  <ProductVisual tone="patina" compact />
-                  <ProductVisual tone="gold" compact />
-                </div>
-              }
-              badge="MELHOR VALOR"
-              note={"Separadamente: " + formatBRL(separateTotal)}
-            />
-          </div>
-
-          {checkoutError && (
-            <div className="checkout-notice" role="status">
-              <strong>Checkout em configuração.</strong>
-              <span>{checkoutError}</span>
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="proof-section">
+      <section className="proof-section" id="produto-real">
         <div className="shell">
           <div className="proof-heading">
             <div>
-              <p className="eyebrow">O PRODUTO REAL</p>
-              <h2>Sem render esconder o que você recebe.</h2>
+              <p className="eyebrow">VEJA A PEÇA REAL</p>
+              <h2>O acabamento muda. O símbolo permanece.</h2>
             </div>
             <p>
-              Estas são fotografias reais das unidades do lote em teste.
-              A apresentação final receberá novos packshots e embalagem própria,
-              mas a peça que está sendo validada é esta.
+              Fotografias reais das duas versões atualmente em validação.
+              A cor pode variar ligeiramente conforme iluminação e tela.
             </p>
           </div>
 
@@ -319,6 +443,7 @@ export default function Funnel() {
                 <span>Acabamento escuro com nuances verde-pátina.</span>
               </figcaption>
             </figure>
+
             <figure>
               <div className="proof-photo">
                 <ProductVisual tone="gold" mode="real" />
@@ -328,6 +453,18 @@ export default function Funnel() {
                 <span>Dourado envelhecido e leitura mais clássica.</span>
               </figcaption>
             </figure>
+          </div>
+
+          <div className="proof-cta">
+            <button
+              className="cta cta-dark"
+              type="button"
+              onClick={() => checkout()}
+              disabled={loading}
+            >
+              Escolher {variant.edition} · {formatBRL(variant.price)}
+              <span>→</span>
+            </button>
           </div>
         </div>
       </section>
@@ -355,8 +492,8 @@ export default function Funnel() {
             </ul>
 
             <p className="disclaimer">
-              A composição metálica e especificações finais serão apresentadas
-              conforme confirmação do fornecedor e do lote comercial.
+              A composição metálica e demais especificações técnicas devem ser
+              confirmadas no lote comercial antes da abertura definitiva das vendas.
             </p>
           </div>
         </div>
@@ -368,18 +505,17 @@ export default function Funnel() {
             <p className="eyebrow">PARA PRESENTEAR</p>
             <h2>Não ofereça apenas um acessório. Ofereça um significado.</h2>
             <p>
-              SIGNUM 312 foi pensada para funcionar tanto como escolha pessoal
+              A coleção foi pensada para funcionar tanto como escolha pessoal
               quanto como presente simbólico.
             </p>
           </div>
 
           <button
             className="cta cta-dark"
+            type="button"
             onClick={() => {
               selectVariant("duo");
-              document
-                .querySelector("#oferta")
-                ?.scrollIntoView({ behavior: "smooth" });
+              document.querySelector("#oferta")?.scrollIntoView({ behavior: "smooth" });
             }}
           >
             Ver SIGNUM Duo <span>→</span>
@@ -406,9 +542,13 @@ export default function Funnel() {
             <Faq q="O que vem no Duo?">
               Uma unidade Pátina e uma unidade Dourada no mesmo pedido.
             </Faq>
+            <Faq q="Como pago no Brasil?">
+              O checkout BRL gera um PIX pela infraestrutura XPAYMENTS. Você pode
+              pagar por QR Code ou PIX Copia e Cola.
+            </Faq>
             <Faq q="Como funciona a entrega?">
-              Prazo e valor são apresentados no checkout conforme o CEP e a
-              modalidade disponível.
+              Prazo, modalidade de envio e política de frete serão apresentados
+              antes da confirmação final da compra.
             </Faq>
             <Faq q="Posso desistir da compra?">
               Compras online seguem as regras de arrependimento aplicáveis ao
@@ -436,8 +576,9 @@ export default function Funnel() {
               className="cta cta-primary"
               onClick={() => checkout()}
               disabled={loading}
+              type="button"
             >
-              {loading ? "Abrindo checkout..." : "Escolher agora"} <span>→</span>
+              {loading ? "Abrindo checkout..." : "Comprar com PIX"} <span>→</span>
             </button>
           </div>
         </div>
@@ -449,7 +590,7 @@ export default function Funnel() {
             <a className="brand footer-brand" href="#top">
               SIGNUM <strong>312</strong>
             </a>
-            <p>Uma coleção Arte&Vida · Novidades.store</p>
+            <p>Uma experiência Arte&Vida · Novidades.store</p>
           </div>
 
           <div className="footer-links">
@@ -467,7 +608,7 @@ export default function Funnel() {
             <span>SIGNUM 312 · {variant.edition}</span>
             <strong>{formatBRL(variant.price)}</strong>
           </div>
-          <button onClick={() => checkout()} disabled={loading}>
+          <button onClick={() => checkout()} disabled={loading} type="button">
             {loading ? "..." : "Comprar"}
           </button>
         </div>
@@ -499,17 +640,25 @@ function OfferCard({
     <article className={"offer-card " + (selected ? "selected" : "")}>
       {badge && <span className="offer-badge">{badge}</span>}
       <div className="offer-visual">{visual}</div>
+
       <p className="offer-eyebrow">{item.eyebrow}</p>
       <h3>{item.edition}</h3>
       <p>{item.description}</p>
-      {note && <small className="offer-note">{note}</small>}
+
+      {note && <small className="offer-note offer-note-positive">{note}</small>}
+
       <strong className="offer-price">{formatBRL(item.price)}</strong>
 
-      <button className="choice-button" onClick={() => onSelect(id)}>
-        {selected ? "✓ Selecionada" : "Selecionar"}
+      <button
+        className="choice-button"
+        onClick={() => onSelect(id)}
+        type="button"
+      >
+        {selected ? "✓ Edição selecionada" : "Selecionar edição"}
       </button>
-      <button className="buy-link" onClick={() => onBuy(id)}>
-        Comprar esta edição →
+
+      <button className="buy-link" onClick={() => onBuy(id)} type="button">
+        Comprar com PIX →
       </button>
     </article>
   );
