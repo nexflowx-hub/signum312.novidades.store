@@ -1,5 +1,4 @@
 import type { VariantId } from "./products";
-import { variants } from "./products";
 import { XPAYMENTS_STORES } from "./checkout-config";
 
 const API_URL =
@@ -50,31 +49,26 @@ function assertBrlConfigured() {
   }
 }
 
-export function amountForVariant(
-  variant: VariantId,
-  shippingCents: number,
-) {
-  const item = variants[variant];
-
-  if (!item) {
-    throw new XPaymentsError(400, "INVALID_VARIANT", "Produto inválido.");
-  }
-
-  return Math.round(item.price * 100) + shippingCents;
-}
-
 export async function createPixCharge(input: {
   variant: VariantId;
   reference: string;
   customer: PixCustomer;
   shipping: ShippingAddress;
   shippingCents: number;
+  amountCents: number;
+  sku: string;
+  edition: string;
   attribution?: Record<string, string>;
 }) {
   assertBrlConfigured();
 
-  const amount = amountForVariant(input.variant, input.shippingCents);
-  const item = variants[input.variant];
+  if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
+    throw new XPaymentsError(
+      500,
+      "INVALID_SERVER_AMOUNT",
+      "O valor do pedido não é válido.",
+    );
+  }
 
   const shippingLine = [
     input.shipping.street,
@@ -97,7 +91,7 @@ export async function createPixCharge(input: {
     },
     cache: "no-store",
     body: JSON.stringify({
-      amount,
+      amount: input.amountCents,
       currency: "BRL",
       payment_method_types: ["pix"],
       reference: input.reference,
@@ -115,9 +109,9 @@ export async function createPixCharge(input: {
         storefront: "signum312.novidades.store",
         ecosystem: "Arte&Vida",
         product: "SIGNUM 312",
-        sku: "SIGNUM312-" + input.variant.toUpperCase(),
+        sku: input.sku,
         variant: input.variant,
-        description: "SIGNUM 312 — " + item.edition,
+        description: "SIGNUM 312 — " + input.edition,
         shipping_cents: String(input.shippingCents),
         shipping_cep: input.shipping.cep,
         shipping_street: input.shipping.street.slice(0, 160),
