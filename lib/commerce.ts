@@ -54,6 +54,11 @@ type OrderRow = {
   id: string;
   number: string;
   status: string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  customer_document: string;
+  shipping_address: ShippingAddress & { country?: string };
   subtotal_cents: number;
   shipping_cents: number;
   total_cents: number;
@@ -264,7 +269,7 @@ export async function createPendingOrder(input: {
   const totalCents = subtotalCents + input.shippingCents;
 
   const orders = await rest<OrderRow[]>(
-    "orders?select=id,number,status,subtotal_cents,shipping_cents,total_cents,currency,storefront_id",
+    "orders?select=id,number,status,customer_name,customer_email,customer_phone,customer_document,shipping_address,subtotal_cents,shipping_cents,total_cents,currency,storefront_id",
     {
       method: "POST",
       headers: headers("return=representation"),
