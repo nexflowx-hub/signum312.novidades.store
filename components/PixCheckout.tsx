@@ -7,7 +7,7 @@ import { getAttribution, productPayload, track } from "@/lib/analytics";
 import { formatBRL, variants, type VariantId } from "@/lib/products";
 import { ProductVisual } from "./ProductVisual";
 
-type CheckoutStep = "form" | "pix" | "paid";
+type CheckoutStep = "form" | "shadow" | "pix" | "paid";
 
 type PixData = {
   transactionId: string;
@@ -22,6 +22,28 @@ type PixData = {
   amount: number;
   currency: "BRL";
   store: string;
+};
+
+type ShadowData = {
+  mode: "shadow";
+  status: "SHADOW_ONLY";
+  paymentIntentId: string;
+  transactionId: string;
+  reference: string;
+  amount: number;
+  currency: "BRL";
+  store: string;
+  routing?: {
+    providerCode?: string | null;
+    gatewayAlias?: string | null;
+    releaseClass?: string | null;
+    policy?: string | null;
+  };
+  economics?: {
+    providerRouteCostBrl?: number;
+    platformFeeBrl?: number;
+    estimatedMerchantNetBrl?: number;
+  } | null;
 };
 
 type Customer = {
@@ -42,6 +64,7 @@ type Shipping = {
 };
 
 type CheckoutConfig = {
+  orchestrator?: "XPAYMENTS" | "PIXBRASIL";
   shippingConfigured: boolean;
   shippingCents: number | null;
   freeShipping: boolean;
@@ -121,6 +144,7 @@ export default function PixCheckout() {
   const [cepMessage, setCepMessage] = useState("");
   const [step, setStep] = useState<CheckoutStep>("form");
   const [pix, setPix] = useState<PixData | null>(null);
+  const [shadow, setShadow] = useState<ShadowData | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
@@ -299,6 +323,26 @@ export default function PixCheckout() {
         throw new Error(
           body?.error?.message || "Não foi possível gerar o PIX.",
         );
+      }
+
+      if (body.data.mode === "shadow") {
+        setShadow(body.data as ShadowData);
+        setStep("shadow");
+
+        track(
+          "pix_shadow_validated",
+          productPayload(variant, body.data.amount, {
+            currency: "BRL",
+            payment_method: "pix",
+            order_reference: body.data.reference,
+            store: body.data.store,
+            provider: body.data.routing?.providerCode,
+            ...attribution,
+          }),
+        );
+
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
       }
 
       setPix(body.data);
@@ -664,13 +708,64 @@ export default function PixCheckout() {
                 <div className="checkout-security">
                   <span>◆</span>
                   <p>
-                    A chave da Store <strong>NOVIDADES-BRL</strong> permanece
-                    exclusivamente no servidor. O valor da cobrança é calculado
-                    novamente no backend antes de chamar a API XPAYMENTS.
+                    A credencial da Store <strong>{config?.store || "PIX"}</strong>{" "}
+                    permanece exclusivamente no servidor. O valor da cobrança é
+                    recalculado no backend antes de chamar{" "}
+                    {config?.orchestrator === "PIXBRASIL" ? "a API PiXBrasil" : "a API XPAYMENTS"}.
                   </p>
                 </div>
               </form>
             </>
+          )}
+
+          {step === "shadow" && shadow && (
+            <div className="pix-stage">
+              <div className="checkout-heading">
+                <span className="step-number">02</span>
+                <div>
+                  <h1>Integração PiXBrasil validada</h1>
+                  <p>
+                    Este ambiente está em SHADOW: o pedido e a decisão de rota
+                    foram registrados, mas nenhum PIX real foi emitido.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pix-card">
+                <div className="pix-status">
+                  <span className="pulse-dot" />
+                  SHADOW · sem movimentação financeira
+                </div>
+
+                <div className="pix-help">
+                  <strong>Resultado técnico</strong>
+                  <ol>
+                    <li>PaymentIntent: {shadow.paymentIntentId}</li>
+                    <li>Store: {shadow.store}</li>
+                    <li>
+                      Provider: {shadow.routing?.providerCode || "—"} ·{" "}
+                      {shadow.routing?.gatewayAlias || "—"}
+                    </li>
+                    <li>
+                      Release: {shadow.routing?.releaseClass || "—"}
+                    </li>
+                  </ol>
+                </div>
+
+                <div className="pix-total">
+                  <span>Valor validado</span>
+                  <strong>{formatBRL(shadow.amount)}</strong>
+                </div>
+
+                <Link className="copy-button" href="/">
+                  Voltar sem pagar
+                </Link>
+              </div>
+
+              <p className="reference-line">
+                Pedido <strong>{shadow.reference}</strong>
+              </p>
+            </div>
           )}
 
           {step === "pix" && pix && (
@@ -820,9 +915,13 @@ export default function PixCheckout() {
           </div>
 
           <div className="summary-trust">
-            <p>✓ Store XPAYMENTS: NOVIDADES-BRL</p>
+            <p>
+              ✓ Store: {config?.store || "NOVIDADES-BRL"}
+            </p>
+            <p>
+              ✓ Orquestração: {config?.orchestrator || "XPAYMENTS"}
+            </p>
             <p>✓ Pagamento por PIX S2S</p>
-            <p>✓ Confirmação automática da transação</p>
           </div>
 
           {step === "form" && (
