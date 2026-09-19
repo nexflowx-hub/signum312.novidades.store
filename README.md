@@ -9,8 +9,10 @@ Conversion-first single-product funnel for `signum312.novidades.store`.
 - Native BRL checkout
 - Shared Supabase Commerce Core
 - Commerce storefront: **SIGNUM312-BR**
-- XPAYMENTS S2S PIX
-- Payment Store: **NOVIDADES-BRL**
+- Dual payment-orchestrator integration: XPAYMENTS rollback path + PiXBrasil pilot
+- PiXBrasil Merchant: **Novidades.Store**
+- PiXBrasil Store: **SIGNUM** (MisticPay D0)
+- Legacy/rollback XPAYMENTS Store: **NOVIDADES-BRL**
 - Reserved international Store: **NOVIDADES-EURO**
 - Real product proof images
 - Campaign-aware hero copy
@@ -35,8 +37,14 @@ NEXT_PUBLIC_SUPABASE_URL=https://eivqvrfsreaopzlvhadu.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=<server-only service role>
 COMMERCE_STOREFRONT_CODE=SIGNUM312-BR
 
+PAYMENT_ORCHESTRATOR=XPAYMENTS
+
+PIXBRASIL_API_URL=https://api.pixbrasil.org/api/v1
+PIXBRASIL_API_KEY=<server-only merchant S2S key>
+PIXBRASIL_STORE=SIGNUM
+
 XPAYMENTS_API_URL=https://api.xpayments.digital/api/v1
-XPAYMENTS_BRL_API_KEY=<LIVE API KEY bound to NOVIDADES-BRL>
+XPAYMENTS_BRL_API_KEY=<rollback key bound to NOVIDADES-BRL>
 XPAYMENTS_BRL_STORE=NOVIDADES-BRL
 
 BRL_SHIPPING_CENTS=<integer cents; use 0 for free shipping>
@@ -62,15 +70,20 @@ Ad
   -> server reads listing/variant price from shared Commerce Core
   -> server creates pending order in Supabase
   -> POST /api/payments/pix
-  -> server POSTs the server-calculated total to XPAYMENTS /api/v1/payments/charge
-  -> Store NOVIDADES-BRL
-  -> PIX S2S
-  -> QR Code / Copia e Cola
-  -> status polling
+  -> server chooses PAYMENT_ORCHESTRATOR
+  -> PiXBrasil pilot: POST https://api.pixbrasil.org/api/v1/payments/charge
+  -> merchant Novidades.Store / store SIGNUM
+  -> store-scoped routing -> MisticPay D0
+  -> SHADOW: persist PaymentIntent/routing/economics without creating a PIX
+  -> LIVE (only after PiXBrasil pilot gate): QR Code / Copia e Cola
+  -> status/webhook confirmation
   -> paid confirmation
+
+XPAYMENTS remains available as a rollback path while the PiXBrasil pilot is validated.
 ```
 
-The XPAYMENTS API key never reaches the browser.
+Neither the XPAYMENTS key nor the PiXBrasil merchant API key reaches the browser.
+The active orchestrator is selected server-side through `PAYMENT_ORCHESTRATOR`.
 
 ## Fulfillment metadata
 
@@ -166,3 +179,22 @@ Recommended first EUR mix: card + MB WAY, processed through XPAYMENTS.
 8. Verify fulfillment data for the paid transaction.
 9. Verify Pixel/GTM and ideally CAPI.
 10. Replace/augment current source photos with final professional packshots.
+
+
+## PiXBrasil pilot safety
+
+PiXBrasil is integrated behind a server-side switch:
+
+- `PAYMENT_ORCHESTRATOR=XPAYMENTS` — current checkout behavior / rollback path.
+- `PAYMENT_ORCHESTRATOR=PIXBRASIL` — Novidades.Store merchant, store `SIGNUM`.
+
+While PiXBrasil returns `SHADOW_ONLY`, the funnel records the Commerce order and the
+PiXBrasil PaymentIntent reference but does not present a fake QR Code and does not poll
+for payment. The checkout renders a technical SHADOW validation state instead.
+
+The production switch to PiXBrasil must only happen after:
+1. the merchant S2S key is configured in Vercel;
+2. the PiXBrasil API is deployed with the tested runtime;
+3. `SIGNUM` resolves to `misticpay-primary` / D0;
+4. live provider execution is explicitly enabled for the pilot;
+5. a controlled low-value payment confirms create -> webhook -> status -> settlement.
