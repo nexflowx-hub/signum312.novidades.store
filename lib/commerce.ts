@@ -12,7 +12,8 @@ const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const STOREFRONT_CODE =
   process.env.COMMERCE_STOREFRONT_CODE || "SIGNUM312-BR";
 
-const PAYMENT_STORE = process.env.XPAYMENTS_BRL_STORE || "NOVIDADES-BRL";
+const DEFAULT_PAYMENT_STORE =
+  process.env.XPAYMENTS_BRL_STORE || "NOVIDADES-BRL";
 
 export class CommerceError extends Error {
   constructor(
@@ -255,6 +256,8 @@ export async function createPendingOrder(input: {
   customer: PixCustomer;
   shipping: ShippingAddress;
   shippingCents: number;
+  paymentStore?: string;
+  paymentOrchestrator?: "XPAYMENTS" | "PIXBRASIL";
   attribution?: Record<string, string>;
 }): Promise<PendingOrder> {
   const [storefront, variant] = await Promise.all([
@@ -304,12 +307,13 @@ export async function createPendingOrder(input: {
         demo: false,
         storefront_id: storefront.id,
         seller_entity_id: storefront.legal_entity_id,
-        payment_store: PAYMENT_STORE,
+        payment_store: input.paymentStore || DEFAULT_PAYMENT_STORE,
         locale: "pt-BR",
         metadata: {
           storefront: "signum312.novidades.store",
           ecosystem: "Arte&Vida",
           variant: input.variant,
+          payment_orchestrator: input.paymentOrchestrator || "XPAYMENTS",
           ...input.attribution,
         },
       }),
@@ -370,6 +374,10 @@ export async function createPendingOrder(input: {
 export async function recordPendingPayment(input: {
   order: PendingOrder;
   transactionId: string;
+  provider?: "xpayments" | "pixbrasil";
+  paymentStore?: string;
+  idempotencySuffix?: string;
+  metadata?: Record<string, unknown>;
   providerPayload?: unknown;
 }) {
   await rest<unknown>(
@@ -379,18 +387,20 @@ export async function recordPendingPayment(input: {
       headers: headers("return=minimal"),
       body: JSON.stringify({
         order_id: input.order.orderId,
-        provider: "xpayments",
+        provider: input.provider || "xpayments",
         provider_ref: input.transactionId || null,
         method: "pix",
         status: "pending",
         amount_cents: input.order.totalCents,
         currency: "BRL",
         storefront_id: input.order.storefrontId,
-        payment_store: PAYMENT_STORE,
-        idempotency_key: input.order.reference + ":pix:1",
+        payment_store: input.paymentStore || DEFAULT_PAYMENT_STORE,
+        idempotency_key:
+          input.order.reference + (input.idempotencySuffix || ":pix:1"),
         metadata: {
           reference: input.order.reference,
           source: "signum312.novidades.store",
+          ...input.metadata,
         },
         raw_payload: input.providerPayload ?? null,
       }),
