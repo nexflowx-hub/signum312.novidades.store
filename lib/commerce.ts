@@ -435,7 +435,7 @@ export async function markOrderPaymentFailed(reference: string) {
 
 export async function loadPendingOrderContext(reference: string) {
   const orders = await rest<OrderRow[]>(
-    "orders?select=id,number,status,subtotal_cents,shipping_cents,total_cents,currency,storefront_id&number=eq." +
+    "orders?select=id,number,status,customer_name,customer_email,customer_phone,customer_document,shipping_address,subtotal_cents,shipping_cents,total_cents,currency,storefront_id&number=eq." +
       encodeURIComponent(reference) +
       "&limit=1",
   );

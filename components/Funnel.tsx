@@ -95,8 +95,8 @@ function messageForCampaign(params: URLSearchParams): HeroMessage {
 }
 
 const trust = [
-  ["Compra transparente", "Total confirmado antes do PIX"],
-  ["Checkout próprio", "QR Code e PIX Copia e Cola"],
+  ["Frete grátis", "Entrega para todo o Brasil"],
+  ["PIX simples", "QR Code e Copia e Cola"],
   ["Compra online", "7 dias para arrependimento"],
 ];
 
@@ -216,9 +216,9 @@ export default function Funnel() {
           <div className="shell announcement-v2-inner">
             <span>Coleção SIGNUM 312</span>
             <i />
-            <span>Pagamento por PIX</span>
+            <span>Oferta especial de lançamento</span>
             <i />
-            <span>Compra online</span>
+            <span>Frete grátis em todo o Brasil</span>
           </div>
         </div>
 
@@ -275,20 +275,24 @@ export default function Funnel() {
                           : "Clássica"}
                     </small>
                   </span>
-                  <span className="choice-v2-price">
-                    {formatBRL(variants[id].price)}
+                  <span className="choice-v2-price choice-v3-price">
+                    <del>{formatBRL(variants[id].compareAtPrice)}</del>
+                    <strong>{formatBRL(variants[id].price)}</strong>
                   </span>
                 </button>
               ))}
             </div>
 
             <div className="hero-v2-buy">
-              <div className="hero-v2-price">
-                <span>Sua escolha</span>
+              <div className="hero-v2-price hero-v3-price">
+                <span>Oferta atual</span>
+                <del>{formatBRL(variant.compareAtPrice)}</del>
                 <strong>{formatBRL(variant.price)}</strong>
-                {selected === "duo" && (
-                  <small>economize {formatBRL(duoSaving)} no conjunto</small>
-                )}
+                <small>
+                  {selected === "duo"
+                    ? "duas edições · economize " + formatBRL(duoSaving)
+                    : "frete grátis para todo o Brasil"}
+                </small>
               </div>
 
               <button
@@ -298,15 +302,16 @@ export default function Funnel() {
                 type="button"
               >
                 <span>
-                  {loading ? "Abrindo checkout..." : "Escolher esta edição"}
+                  {loading ? "Abrindo checkout..." : "Quero meu SIGNUM"}
                 </span>
                 <b aria-hidden="true">→</b>
               </button>
             </div>
 
             <div className="hero-v2-reassurance">
-              <span>✓ Valor final antes do pagamento</span>
+              <span>✓ Frete grátis em todo o Brasil</span>
               <span>✓ PIX por QR Code ou Copia e Cola</span>
+              <span>✓ Valor final conferido antes do pagamento</span>
             </div>
           </div>
 
@@ -420,11 +425,11 @@ export default function Funnel() {
           </div>
 
           <div className="collection-v2-foot">
-            <span>Uma peça: a partir de {formatBRL(variants.gold.price)}</span>
+            <span>Uma peça: {formatBRL(variants.gold.price)}</span>
             <i />
             <span>Duo: {formatBRL(variants.duo.price)}</span>
             <i />
-            <span>Pagamento em BRL via PIX</span>
+            <span>Frete grátis para todo o Brasil</span>
           </div>
         </div>
       </section>
@@ -633,8 +638,13 @@ export default function Funnel() {
               {formatBRL(variants.duo.price)}.
             </p>
             <div className="gift-v2-saving">
-              <span>Separadas: {formatBRL(separateTotal)}</span>
-              <strong>Economia no Duo: {formatBRL(duoSaving)}</strong>
+              <span>Preço anterior do Duo: {formatBRL(variants.duo.compareAtPrice)}</span>
+              <strong>
+                Hoje: {formatBRL(variants.duo.price)} · duas peças · frete grátis
+              </strong>
+              <small>
+                Versus duas unidades na oferta atual, o Duo economiza {formatBRL(duoSaving)}.
+              </small>
             </div>
           </div>
 
@@ -651,6 +661,47 @@ export default function Funnel() {
           >
             Escolher SIGNUM Duo <span>→</span>
           </button>
+        </div>
+      </section>
+
+      <section className="purchase-v3">
+        <div className="shell">
+          <div className="purchase-v3-heading">
+            <div>
+              <p className="eyebrow-v2">COMPRA DIRETA, SEM RUÍDO</p>
+              <h2>Escolha. Gere o PIX. Pronto.</h2>
+            </div>
+            <p>
+              O checkout foi reduzido ao essencial: seus dados, endereço de
+              entrega e a geração do QR Code para pagamento.
+            </p>
+          </div>
+
+          <div className="purchase-v3-steps">
+            <article>
+              <span>01</span>
+              <h3>Escolha a edição</h3>
+              <p>Pátina, Dourada ou Duo. O preço promocional já aparece antes do checkout.</p>
+            </article>
+            <article>
+              <span>02</span>
+              <h3>Informe a entrega</h3>
+              <p>CEP, endereço e contato. O frete é grátis para todo o Brasil.</p>
+            </article>
+            <article>
+              <span>03</span>
+              <h3>Gere o QR Code</h3>
+              <p>Confira o total e gere o PIX. Você pode pagar pelo QR Code ou Copia e Cola.</p>
+            </article>
+          </div>
+
+          <div className="purchase-v3-banner">
+            <strong>Frete grátis Brasil</strong>
+            <span>•</span>
+            <strong>PIX em poucos passos</strong>
+            <span>•</span>
+            <strong>7 dias para arrependimento</strong>
+          </div>
         </div>
       </section>
 
@@ -684,8 +735,8 @@ export default function Funnel() {
               PIX Copia e Cola, com o valor total apresentado antes da geração.
             </Faq>
             <Faq q="Como funciona a entrega?">
-              O checkout solicita os dados de entrega e apresenta o total antes
-              da confirmação do pagamento.
+              O frete é grátis para todo o Brasil. No checkout você informa o
+              endereço de entrega e confere o valor final antes de gerar o PIX.
             </Faq>
             <Faq q="Posso desistir da compra?">
               Compras online seguem o direito de arrependimento aplicável ao
@@ -712,6 +763,7 @@ export default function Funnel() {
 
           <div className="final-v2-buy">
             <span>{variant.edition}</span>
+            <del className="final-v3-old-price">{formatBRL(variant.compareAtPrice)}</del>
             <strong>{formatBRL(variant.price)}</strong>
             <button
               className="cta-v2 cta-v2-primary"
@@ -719,7 +771,7 @@ export default function Funnel() {
               disabled={loading}
               type="button"
             >
-              {loading ? "Abrindo checkout..." : "Escolher esta edição"}{" "}
+              {loading ? "Abrindo checkout..." : "Quero meu SIGNUM"}{" "}
               <b>→</b>
             </button>
           </div>
@@ -751,6 +803,7 @@ export default function Funnel() {
         <div className="sticky-v2" role="region" aria-label="Compra rápida">
           <div>
             <span>SIGNUM 312 · {variant.edition}</span>
+            <small className="sticky-v3-old">{formatBRL(variant.compareAtPrice)}</small>
             <strong>{formatBRL(variant.price)}</strong>
           </div>
           <button onClick={() => checkout()} disabled={loading} type="button">
@@ -806,8 +859,11 @@ function OfferCard({
         {note && <small className="offer-v2-note">{note}</small>}
 
         <div className="offer-v2-price-row">
-          <strong>{formatBRL(item.price)}</strong>
-          <span>pagamento por PIX</span>
+          <div className="offer-v3-price-stack">
+            <del>{formatBRL(item.compareAtPrice)}</del>
+            <strong>{formatBRL(item.price)}</strong>
+          </div>
+          <span>frete grátis</span>
         </div>
 
         <button

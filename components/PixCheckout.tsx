@@ -7,7 +7,7 @@ import { getAttribution, productPayload, track } from "@/lib/analytics";
 import { formatBRL, variants, type VariantId } from "@/lib/products";
 import { ProductVisual } from "./ProductVisual";
 
-type CheckoutStep = "form" | "shadow" | "pix" | "paid";
+type CheckoutStep = "form" | "pix" | "paid";
 
 type PixData = {
   transactionId: string;
@@ -21,29 +21,6 @@ type PixData = {
   shipping: number;
   amount: number;
   currency: "BRL";
-  store: string;
-};
-
-type ShadowData = {
-  mode: "shadow";
-  status: "SHADOW_ONLY";
-  paymentIntentId: string;
-  transactionId: string;
-  reference: string;
-  amount: number;
-  currency: "BRL";
-  store: string;
-  routing?: {
-    providerCode?: string | null;
-    gatewayAlias?: string | null;
-    releaseClass?: string | null;
-    policy?: string | null;
-  };
-  economics?: {
-    providerRouteCostBrl?: number;
-    platformFeeBrl?: number;
-    estimatedMerchantNetBrl?: number;
-  } | null;
 };
 
 type Customer = {
@@ -61,14 +38,6 @@ type Shipping = {
   neighborhood: string;
   city: string;
   state: string;
-};
-
-type CheckoutConfig = {
-  orchestrator?: "XPAYMENTS" | "PIXBRASIL";
-  shippingConfigured: boolean;
-  shippingCents: number | null;
-  freeShipping: boolean;
-  store: string;
 };
 
 function onlyDigits(value: string) {
@@ -138,13 +107,10 @@ export default function PixCheckout() {
     state: "",
   });
 
-  const [config, setConfig] = useState<CheckoutConfig | null>(null);
-  const [configLoading, setConfigLoading] = useState(true);
   const [cepLoading, setCepLoading] = useState(false);
   const [cepMessage, setCepMessage] = useState("");
   const [step, setStep] = useState<CheckoutStep>("form");
   const [pix, setPix] = useState<PixData | null>(null);
-  const [shadow, setShadow] = useState<ShadowData | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
@@ -152,48 +118,21 @@ export default function PixCheckout() {
   const [attribution, setAttribution] = useState<Record<string, string>>({});
   const pollingRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    setAttribution(getAttribution());
-  }, []);
-
-  const shippingValue = (config?.shippingCents ?? 0) / 100;
-  const totalValue = product.price + shippingValue;
+  const totalValue = product.price;
 
   useEffect(() => {
-    let alive = true;
-
-    async function loadConfig() {
-      try {
-        const response = await fetch("/api/checkout/config", {
-          cache: "no-store",
-        });
-        const body = await response.json();
-
-        if (alive && response.ok && body?.data) {
-          setConfig(body.data);
-        }
-      } catch {
-        if (alive) setConfig(null);
-      } finally {
-        if (alive) setConfigLoading(false);
-      }
-    }
-
-    void loadConfig();
+    const current = getAttribution();
+    setAttribution(current);
 
     track(
       "checkout_view",
       productPayload(variant, product.price, {
         currency: "BRL",
         payment_method: "pix",
-        ...attribution,
+        ...current,
       }),
     );
-
-    return () => {
-      alive = false;
-    };
-  }, [variant, product.price, attribution]);
+  }, [variant, product.price]);
 
   useEffect(() => {
     if (step !== "pix" || !pix) return;
@@ -205,9 +144,7 @@ export default function PixCheckout() {
         const response = await fetch("/api/payments/pix/status", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            reference: pix.reference,
-          }),
+          body: JSON.stringify({ reference: pix.reference }),
         });
 
         const body = await response.json();
@@ -224,13 +161,13 @@ export default function PixCheckout() {
               payment_method: "pix",
               order_reference: pix.reference,
               transaction_id: pix.transactionId,
-              shipping_value: pix.shipping,
+              shipping_value: 0,
               ...attribution,
             }),
           );
         }
       } catch {
-        // Uma falha transitória de polling não invalida o PIX já emitido.
+        // O PIX permanece válido mesmo se uma consulta de status falhar.
       }
 
       setElapsed(Math.floor((Date.now() - startedAt) / 1000));
@@ -242,7 +179,7 @@ export default function PixCheckout() {
     return () => {
       if (pollingRef.current) window.clearInterval(pollingRef.current);
     };
-  }, [step, pix, variant, customer, shipping, attribution]);
+  }, [step, pix, variant, attribution]);
 
   async function lookupCep() {
     const cep = onlyDigits(shipping.cep);
@@ -289,14 +226,6 @@ export default function PixCheckout() {
     setBusy(true);
     setError("");
 
-    if (!config?.shippingConfigured) {
-      setError(
-        "A política de frete ainda não está configurada. Nenhuma cobrança foi criada.",
-      );
-      setBusy(false);
-      return;
-    }
-
     try {
       const response = await fetch("/api/payments/pix", {
         method: "POST",
@@ -326,26 +255,12 @@ export default function PixCheckout() {
       }
 
       if (body.data.mode === "shadow") {
-        setShadow(body.data as ShadowData);
-        setStep("shadow");
-
-        track(
-          "pix_shadow_validated",
-          productPayload(variant, body.data.amount, {
-            currency: "BRL",
-            payment_method: "pix",
-            order_reference: body.data.reference,
-            store: body.data.store,
-            provider: body.data.routing?.providerCode,
-            ...attribution,
-          }),
+        throw new Error(
+          "O pagamento está temporariamente indisponível. Tente novamente em instantes.",
         );
-
-        window.scrollTo({ top: 0, behavior: "smooth" });
-        return;
       }
 
-      setPix(body.data);
+      setPix(body.data as PixData);
       setStep("pix");
 
       track(
@@ -354,8 +269,7 @@ export default function PixCheckout() {
           currency: "BRL",
           payment_method: "pix",
           order_reference: body.data.reference,
-          shipping_value: body.data.shipping,
-          store: body.data.store,
+          shipping_value: 0,
           ...attribution,
         }),
       );
@@ -392,50 +306,48 @@ export default function PixCheckout() {
     }
   }
 
+  function resetPix() {
+    if (pollingRef.current) window.clearInterval(pollingRef.current);
+    setPix(null);
+    setCopied(false);
+    setElapsed(0);
+    setError("");
+    setStep("form");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   return (
-    <main className="checkout-shell">
+    <main className="checkout-shell checkout-v3">
       <header className="checkout-topbar">
         <Link href="/" className="checkout-brand">
           <span>✦</span> SIGNUM <strong>312</strong>
         </Link>
 
         <div className="secure-mark">
-          <span>●</span> Checkout protegido
+          <span>●</span> Compra segura
         </div>
       </header>
 
       <div className="checkout-grid">
         <section className="checkout-main">
-          <div className="checkout-kicker">ARTE&VIDA · NOVIDADES.STORE</div>
+          <div className="checkout-kicker">SIGNUM 312 · NOVIDADES.STORE</div>
 
           {step === "form" && (
             <>
-              <div className="checkout-heading">
+              <div className="checkout-heading checkout-v3-heading">
                 <span className="step-number">01</span>
                 <div>
-                  <h1>Entrega e PIX</h1>
+                  <h1>Finalize seu SIGNUM.</h1>
                   <p>
-                    Informe os dados da compra. O QR Code só é gerado depois de
-                    você conferir o total.
+                    Preencha a entrega, confira o total e gere o QR Code PIX.
                   </p>
                 </div>
               </div>
 
-              <div className="currency-pill-row" aria-label="Moeda">
-                <button className="currency-pill active" type="button">
-                  <span>🇧🇷</span>
-                  Brasil · BRL
-                </button>
-
-                <button
-                  className="currency-pill disabled"
-                  type="button"
-                  disabled
-                  title="Checkout NOVIDADES-EURO em preparação"
-                >
-                  <span>🇪🇺</span>
-                  Europa · EUR
-                </button>
+              <div className="checkout-v3-benefits">
+                <span>✓ Frete grátis Brasil</span>
+                <span>✓ PIX QR Code</span>
+                <span>✓ 7 dias para arrependimento</span>
               </div>
 
               <form className="checkout-form" onSubmit={createPix}>
@@ -510,8 +422,7 @@ export default function PixCheckout() {
                         required
                       />
                       <small>
-                        Usado pelo processamento PIX. O documento completo não é
-                        exibido na página.
+                        Necessário para gerar a cobrança PIX e identificar o pedido.
                       </small>
                     </label>
                   </div>
@@ -545,7 +456,9 @@ export default function PixCheckout() {
                         <button
                           type="button"
                           onClick={() => void lookupCep()}
-                          disabled={cepLoading || onlyDigits(shipping.cep).length !== 8}
+                          disabled={
+                            cepLoading || onlyDigits(shipping.cep).length !== 8
+                          }
                         >
                           {cepLoading ? "..." : "Buscar"}
                         </button>
@@ -649,30 +562,22 @@ export default function PixCheckout() {
                   </div>
                 </fieldset>
 
-                <div className="checkout-price-box">
+                <div className="checkout-price-box checkout-v3-pricebox">
                   <div>
-                    <span>Produto</span>
+                    <span>Preço anterior</span>
+                    <del>{formatBRL(product.compareAtPrice)}</del>
+                  </div>
+                  <div>
+                    <span>Oferta SIGNUM</span>
                     <strong>{formatBRL(product.price)}</strong>
                   </div>
                   <div>
                     <span>Frete</span>
-                    <strong>
-                      {configLoading
-                        ? "..."
-                        : config?.shippingConfigured
-                          ? config.freeShipping
-                            ? "Grátis"
-                            : formatBRL(shippingValue)
-                          : "Não configurado"}
-                    </strong>
+                    <strong className="free-shipping">Grátis</strong>
                   </div>
                   <div className="checkout-price-total">
                     <span>Total no PIX</span>
-                    <strong>
-                      {config?.shippingConfigured
-                        ? formatBRL(totalValue)
-                        : "—"}
-                    </strong>
+                    <strong>{formatBRL(totalValue)}</strong>
                   </div>
                 </div>
 
@@ -684,112 +589,50 @@ export default function PixCheckout() {
                 )}
 
                 <button
-                  className="pay-button"
+                  className="pay-button checkout-v3-pay"
                   type="submit"
-                  disabled={
-                    busy ||
-                    configLoading ||
-                    !config?.shippingConfigured
-                  }
+                  disabled={busy}
                 >
                   <span>
-                    {busy ? "Gerando PIX..." : "Gerar PIX e pagar"}
-                    <small>
-                      Você verá o QR Code antes de sair desta página
-                    </small>
+                    {busy ? "Gerando QR Code..." : "Gerar QR Code PIX"}
+                    <small>O pagamento só é feito depois da sua confirmação no banco</small>
                   </span>
-                  <strong>
-                    {config?.shippingConfigured
-                      ? formatBRL(totalValue)
-                      : "—"}
-                  </strong>
+                  <strong>{formatBRL(totalValue)}</strong>
                 </button>
 
-                <div className="checkout-security">
+                <div className="checkout-security checkout-v3-security">
                   <span>◆</span>
                   <p>
-                    A credencial da Store <strong>{config?.store || "PIX"}</strong>{" "}
-                    permanece exclusivamente no servidor. O valor da cobrança é
-                    recalculado no backend antes de chamar{" "}
-                    {config?.orchestrator === "PIXBRASIL" ? "a API PiXBrasil" : "a API XPAYMENTS"}.
+                    Confira o valor e os dados do recebedor no aplicativo do seu
+                    banco antes de concluir o PIX.
                   </p>
                 </div>
               </form>
             </>
           )}
 
-          {step === "shadow" && shadow && (
-            <div className="pix-stage">
-              <div className="checkout-heading">
-                <span className="step-number">02</span>
-                <div>
-                  <h1>Integração PiXBrasil validada</h1>
-                  <p>
-                    Este ambiente está em SHADOW: o pedido e a decisão de rota
-                    foram registrados, mas nenhum PIX real foi emitido.
-                  </p>
-                </div>
-              </div>
-
-              <div className="pix-card">
-                <div className="pix-status">
-                  <span className="pulse-dot" />
-                  SHADOW · sem movimentação financeira
-                </div>
-
-                <div className="pix-help">
-                  <strong>Resultado técnico</strong>
-                  <ol>
-                    <li>PaymentIntent: {shadow.paymentIntentId}</li>
-                    <li>Store: {shadow.store}</li>
-                    <li>
-                      Provider: {shadow.routing?.providerCode || "—"} ·{" "}
-                      {shadow.routing?.gatewayAlias || "—"}
-                    </li>
-                    <li>
-                      Release: {shadow.routing?.releaseClass || "—"}
-                    </li>
-                  </ol>
-                </div>
-
-                <div className="pix-total">
-                  <span>Valor validado</span>
-                  <strong>{formatBRL(shadow.amount)}</strong>
-                </div>
-
-                <Link className="copy-button" href="/">
-                  Voltar sem pagar
-                </Link>
-              </div>
-
-              <p className="reference-line">
-                Pedido <strong>{shadow.reference}</strong>
-              </p>
-            </div>
-          )}
-
           {step === "pix" && pix && (
             <div className="pix-stage">
-              <div className="checkout-heading">
+              <div className="checkout-heading checkout-v3-heading">
                 <span className="step-number">02</span>
                 <div>
-                  <h1>PIX pronto</h1>
+                  <h1>Seu PIX está pronto.</h1>
                   <p>
-                    Abra o app do seu banco e pague pelo QR Code ou PIX Copia e Cola.
+                    Escaneie o QR Code ou use o Pix Copia e Cola.
                   </p>
                 </div>
               </div>
 
-              <div className="pix-card">
+              <div className="pix-card checkout-v3-pix-card">
                 <div className="pix-status">
                   <span className="pulse-dot" />
-                  Aguardando confirmação
+                  Aguardando pagamento
                 </div>
 
                 {pix.qrCode ? (
-                  <div className="qr-wrap">
+                  <div className="qr-wrap checkout-v3-qr">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={pix.qrCode} alt="QR Code PIX" />
+                    <img src={pix.qrCode} alt="QR Code PIX SIGNUM 312" />
                   </div>
                 ) : (
                   <div className="qr-fallback">
@@ -816,16 +659,24 @@ export default function PixCheckout() {
                   <strong>Como pagar</strong>
                   <ol>
                     <li>Abra o aplicativo do seu banco.</li>
-                    <li>Escolha PIX e depois “Copia e Cola” ou leia o QR Code.</li>
+                    <li>Escolha PIX e leia o QR Code ou use “Copia e Cola”.</li>
                     <li>Confira o valor e conclua o pagamento.</li>
                   </ol>
                 </div>
 
                 <div className="payment-watcher">
                   <span className="watcher-spinner" />
-                  Estamos verificando a confirmação automaticamente.
-                  {elapsed > 10 && <small> Pode manter esta página aberta.</small>}
+                  A confirmação pode levar alguns instantes.
+                  {elapsed > 10 && <small> Mantenha esta página aberta.</small>}
                 </div>
+
+                <button
+                  className="checkout-v3-secondary"
+                  type="button"
+                  onClick={resetPix}
+                >
+                  Gerar um novo PIX
+                </button>
               </div>
 
               <p className="reference-line">
@@ -840,8 +691,8 @@ export default function PixCheckout() {
               <p className="eyebrow">PAGAMENTO CONFIRMADO</p>
               <h1>Seu SIGNUM 312 está confirmado.</h1>
               <p>
-                O PIX foi confirmado. A referência abaixo identifica o pedido.
-                A entrega será destinada ao endereço informado no checkout.
+                Recebemos a confirmação do PIX. Guarde a referência abaixo para
+                acompanhar o pedido.
               </p>
 
               <div className="success-reference">
@@ -863,7 +714,7 @@ export default function PixCheckout() {
           )}
         </section>
 
-        <aside className="order-summary">
+        <aside className="order-summary checkout-v3-summary">
           <div className="summary-product">
             {variant === "duo" ? (
               <div className="summary-duo">
@@ -885,48 +736,35 @@ export default function PixCheckout() {
             <p>{product.description}</p>
           </div>
 
+          <div className="summary-row summary-v3-price">
+            <span>Preço anterior</span>
+            <del>{formatBRL(product.compareAtPrice)}</del>
+          </div>
+
           <div className="summary-row">
-            <span>Produto</span>
+            <span>Oferta</span>
             <strong>{formatBRL(product.price)}</strong>
           </div>
 
           <div className="summary-row">
-            <span>Frete</span>
-            <strong>
-              {configLoading
-                ? "..."
-                : config?.shippingConfigured
-                  ? config.freeShipping
-                    ? "Grátis"
-                    : formatBRL(shippingValue)
-                  : "Pendente"}
-            </strong>
+            <span>Frete Brasil</span>
+            <strong className="free-shipping">Grátis</strong>
           </div>
 
           <div className="summary-total">
             <span>Total</span>
-            <strong>
-              {pix
-                ? formatBRL(pix.amount)
-                : config?.shippingConfigured
-                  ? formatBRL(totalValue)
-                  : "—"}
-            </strong>
+            <strong>{pix ? formatBRL(pix.amount) : formatBRL(totalValue)}</strong>
           </div>
 
-          <div className="summary-trust">
-            <p>
-              ✓ Store: {config?.store || "NOVIDADES-BRL"}
-            </p>
-            <p>
-              ✓ Orquestração: {config?.orchestrator || "XPAYMENTS"}
-            </p>
-            <p>✓ Pagamento por PIX S2S</p>
+          <div className="summary-trust checkout-v3-trust">
+            <p>✓ Frete grátis para todo o Brasil</p>
+            <p>✓ PIX por QR Code ou Copia e Cola</p>
+            <p>✓ Direito de arrependimento em compras online</p>
           </div>
 
           {step === "form" && (
             <Link
-              href={"/?variant=" + variant + "#oferta"}
+              href={"/?variant=" + variant + "#edicoes"}
               className="change-product"
             >
               ← Alterar edição

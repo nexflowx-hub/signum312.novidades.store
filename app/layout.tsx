@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import "./globals.css";
 import "./funnel-v2.css";
+import "./conversion-v3.css";
 
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL || "https://signum312.novidades.store";
