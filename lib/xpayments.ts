@@ -38,8 +38,12 @@ export type PixCustomer = {
   phone: string;
 };
 
+export function isBrlConfigured() {
+  return Boolean(BRL_API_KEY);
+}
+
 export function assertBrlConfigured() {
-  if (!BRL_API_KEY) {
+  if (!isBrlConfigured()) {
     throw new XPaymentsError(
       503,
       "XPAYMENTS_BRL_NOT_CONFIGURED",

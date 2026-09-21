@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getBrlShippingCents } from "@/lib/checkout-config";
+import { isBrlConfigured } from "@/lib/xpayments";
 
 export async function GET() {
   const shippingCents = getBrlShippingCents();
@@ -11,6 +12,7 @@ export async function GET() {
       shippingConfigured: true,
       shippingCents,
       freeShipping: true,
+      paymentReady: isBrlConfigured(),
     },
   });
 }
