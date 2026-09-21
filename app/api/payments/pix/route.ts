@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  assertBrlConfigured,
   createPixCharge,
   normalizePixAction,
   XPaymentsError,
@@ -12,13 +13,6 @@ import {
   markOrderPaymentFailed,
   recordPendingPayment,
 } from "@/lib/commerce";
-import {
-  createPixBrasilCharge,
-  getPaymentOrchestrator,
-  getPixBrasilStore,
-  normalizePixBrasilAction,
-  PixBrasilError,
-} from "@/lib/pixbrasil";
 import { getBrlShippingCents } from "@/lib/checkout-config";
 import { variants, type VariantId } from "@/lib/products";
 import {
@@ -179,12 +173,13 @@ export async function POST(request: Request) {
       }
     }
 
+    // SIGNUM 312 is temporarily pinned to the production XPAYMENTS BRL Store.
+    // This is intentionally not controlled by PAYMENT_ORCHESTRATOR so a stale
+    // deployment variable cannot redirect checkout traffic to another rail.
+    assertBrlConfigured();
+
     reference = createOrderReference(variant);
-    const orchestrator = getPaymentOrchestrator();
-    const paymentStore =
-      orchestrator === "PIXBRASIL"
-        ? getPixBrasilStore()
-        : "NOVIDADES-BRL";
+    const paymentStore = "NOVIDADES-BRL";
 
     // Commerce Core creates the order first and resolves the server-side price.
     const order = await createPendingOrder({
@@ -194,7 +189,7 @@ export async function POST(request: Request) {
       shipping,
       shippingCents,
       paymentStore,
-      paymentOrchestrator: orchestrator,
+      paymentOrchestrator: "XPAYMENTS",
       attribution,
     });
 
@@ -202,89 +197,19 @@ export async function POST(request: Request) {
     let pix: ReturnType<typeof normalizePixAction>;
 
     try {
-      if (orchestrator === "PIXBRASIL") {
-        payload = await createPixBrasilCharge({
-          variant,
-          reference: order.reference,
-          customer: { name, email, document, phone },
-          shipping,
-          shippingCents: order.shippingCents,
-          amountCents: order.totalCents,
-          sku: order.sku,
-          edition: order.edition,
-          attribution,
-        });
+      payload = await createPixCharge({
+        variant,
+        reference: order.reference,
+        customer: { name, email, document, phone },
+        shipping,
+        shippingCents: order.shippingCents,
+        amountCents: order.totalCents,
+        sku: order.sku,
+        edition: order.edition,
+        attribution,
+      });
 
-        const pixBrasil = normalizePixBrasilAction(payload);
-
-        if (pixBrasil.mode === "shadow") {
-          try {
-            await recordPendingPayment({
-              order,
-              transactionId: pixBrasil.paymentIntentId,
-              provider: "pixbrasil",
-              paymentStore,
-              idempotencySuffix: ":pixbrasil:1",
-              metadata: {
-                mode: "shadow",
-                routing: pixBrasil.routing,
-                economics: pixBrasil.economics,
-                release: pixBrasil.release,
-              },
-              providerPayload: payload?.data ?? null,
-            });
-          } catch (error) {
-            console.error("[SIGNUM_PIXBRASIL_SHADOW_RECORD_ERROR]", error);
-          }
-
-          return NextResponse.json(
-            {
-              success: true,
-              data: {
-                mode: "shadow",
-                status: "SHADOW_ONLY",
-                paymentIntentId: pixBrasil.paymentIntentId,
-                transactionId: pixBrasil.transactionId,
-                reference: order.reference,
-                variant,
-                orderId: order.orderId,
-                subtotal: order.subtotalCents / 100,
-                shipping: order.shippingCents / 100,
-                amount: order.totalCents / 100,
-                currency: "BRL",
-                store: paymentStore,
-                routing: pixBrasil.routing,
-                economics: pixBrasil.economics,
-                release: pixBrasil.release,
-              },
-            },
-            { status: 202 },
-          );
-        }
-
-        pix = {
-          transactionId: pixBrasil.transactionId,
-          reference: pixBrasil.reference,
-          status: pixBrasil.status,
-          copyPaste: pixBrasil.copyPaste,
-          qrCode: pixBrasil.qrCode,
-          expiresAt: pixBrasil.expiresAt,
-        };
-      } else {
-        payload = await createPixCharge({
-          variant,
-          reference: order.reference,
-          customer: { name, email, document, phone },
-          shipping,
-          shippingCents: order.shippingCents,
-          amountCents: order.totalCents,
-          sku: order.sku,
-          edition: order.edition,
-          attribution,
-        });
-
-        pix = normalizePixAction(payload);
-      }
+      pix = normalizePixAction(payload);
     } catch (error) {
       await markOrderPaymentFailed(order.reference);
       throw error;
@@ -310,11 +235,10 @@ export async function POST(request: Request) {
       await recordPendingPayment({
         order,
         transactionId: pix.transactionId,
-        provider: orchestrator === "PIXBRASIL" ? "pixbrasil" : "xpayments",
+        provider: "xpayments",
         paymentStore,
-        idempotencySuffix:
-          orchestrator === "PIXBRASIL" ? ":pixbrasil:1" : ":pix:1",
-        metadata: { orchestrator },
+        idempotencySuffix: ":pix:1",
+        metadata: { orchestrator: "XPAYMENTS" },
         providerPayload: {
           transactionId: pix.transactionId,
           reference: pix.reference,
@@ -343,16 +267,6 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     if (error instanceof CommerceError) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: error.code, message: error.message },
-        },
-        { status: error.status },
-      );
-    }
-
-    if (error instanceof PixBrasilError) {
       return NextResponse.json(
         {
           success: false,

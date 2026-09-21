@@ -38,7 +38,7 @@ export type PixCustomer = {
   phone: string;
 };
 
-function assertBrlConfigured() {
+export function assertBrlConfigured() {
   if (!BRL_API_KEY) {
     throw new XPaymentsError(
       503,

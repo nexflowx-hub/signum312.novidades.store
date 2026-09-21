@@ -37,16 +37,15 @@ NEXT_PUBLIC_SUPABASE_URL=https://eivqvrfsreaopzlvhadu.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=<server-only>
 COMMERCE_STOREFRONT_CODE=SIGNUM312-BR
 
-PAYMENT_ORCHESTRATOR=PIXBRASIL
-PIXBRASIL_API_URL=https://api.pixbrasil.org/api/v1
-PIXBRASIL_API_KEY=<server-only>
-PIXBRASIL_STORE=SIGNUM
+XPAYMENTS_API_URL=https://api.xpayments.digital/api/v1
+XPAYMENTS_BRL_API_KEY=<server-only>
+XPAYMENTS_BRL_STORE=NOVIDADES-BRL
 
 NEXT_PUBLIC_META_PIXEL_ID=<optional>
 NEXT_PUBLIC_GTM_ID=<optional>
 ```
 
-O comprador não recebe nomes de providers, Stores, rotas, chaves ou detalhes da infraestrutura.
+O checkout SIGNUM 312 está temporariamente fixado no backend de produção XPAYMENTS, Store NOVIDADES-BRL. A escolha do backend não depende de variável de orquestração, evitando desvios acidentais para outra integração. O comprador não recebe nomes de providers, Stores, rotas, chaves ou detalhes da infraestrutura.
 
 ## Fluxo da compra
 
