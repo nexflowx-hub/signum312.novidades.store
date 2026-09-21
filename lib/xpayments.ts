@@ -1,5 +1,4 @@
 import type { VariantId } from "./products";
-import { XPAYMENTS_STORES } from "./checkout-config";
 
 const API_URL =
   process.env.XPAYMENTS_API_URL ||
@@ -105,7 +104,6 @@ export async function createPixCharge(input: {
       metadata: {
         order_id: input.reference,
         reference: input.reference,
-        merchant_store: XPAYMENTS_STORES.BRL,
         storefront: "signum312.novidades.store",
         ecosystem: "Arte&Vida",
         product: "SIGNUM 312",
