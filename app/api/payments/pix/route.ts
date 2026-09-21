@@ -19,7 +19,7 @@ import {
   normalizePixBrasilAction,
   PixBrasilError,
 } from "@/lib/pixbrasil";
-import { getBrlShippingCents, XPAYMENTS_STORES } from "@/lib/checkout-config";
+import { getBrlShippingCents } from "@/lib/checkout-config";
 import { variants, type VariantId } from "@/lib/products";
 import {
   isValidBrazilPhone,
@@ -184,7 +184,7 @@ export async function POST(request: Request) {
     const paymentStore =
       orchestrator === "PIXBRASIL"
         ? getPixBrasilStore()
-        : XPAYMENTS_STORES.BRL;
+        : "NOVIDADES-BRL";
 
     // Commerce Core creates the order first and resolves the server-side price.
     const order = await createPendingOrder({
@@ -324,7 +324,7 @@ export async function POST(request: Request) {
       });
     } catch (error) {
       // A valid PIX already exists. Do not hide it from the customer because a
-      // secondary persistence step failed; XPAYMENTS + order reference allow reconciliation.
+      // secondary persistence step failed; the order reference allows reconciliation.
       console.error("[SIGNUM_PAYMENT_RECORD_ERROR]", error);
     }
 

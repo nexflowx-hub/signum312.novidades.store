@@ -6,12 +6,13 @@ export default function Contact() {
       <div className="legal-shell">
         <Link href="/">← Voltar para SIGNUM 312</Link>
         <h1>Contato</h1>
-        <p>Atendimento do ecossistema Arte&Vida / Novidades.store.</p>
+        <p>Atendimento SIGNUM 312 · Novidades.store.</p>
         <div className="contact-placeholder">
-          <strong>Canal de atendimento</strong>
+          <strong>Atendimento ao pedido</strong>
           <p>
-            Os dados finais de WhatsApp e e-mail serão publicados antes da
-            ativação das campanhas pagas.
+            Para dúvidas sobre pagamento, entrega, troca ou devolução, tenha em
+            mãos a referência exibida no checkout e utilize o canal de
+            atendimento informado nas comunicações do seu pedido.
           </p>
         </div>
       </div>

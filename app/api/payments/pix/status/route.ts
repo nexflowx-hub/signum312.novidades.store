@@ -9,6 +9,11 @@ import {
   loadPendingOrderContext,
   markOrderPaid,
 } from "@/lib/commerce";
+import {
+  getPixBrasilPayment,
+  isPixBrasilPaidStatus,
+  PixBrasilError,
+} from "@/lib/pixbrasil";
 import type { VariantId } from "@/lib/products";
 
 function variantFromSku(sku: string): VariantId | null {
@@ -36,12 +41,30 @@ export async function POST(request: Request) {
       );
     }
 
-    const { order, item } = await loadPendingOrderContext(reference);
+    const { order, item, payment } = await loadPendingOrderContext(reference);
 
     if (order.status === "paid") {
       return NextResponse.json({
         success: true,
         data: { status: "paid", reference },
+      });
+    }
+
+    if (payment?.provider === "pixbrasil" && payment.provider_ref) {
+      const remote = await getPixBrasilPayment(payment.provider_ref);
+      const paid = isPixBrasilPaidStatus(remote.data.status);
+
+      if (paid) {
+        await markOrderPaid(reference, payment.provider_ref);
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          status: paid ? "paid" : "pending",
+          reference,
+          transactionId: payment.provider_ref,
+        },
       });
     }
 
@@ -116,6 +139,16 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     if (error instanceof CommerceError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: { code: error.code, message: error.message },
+        },
+        { status: error.status },
+      );
+    }
+
+    if (error instanceof PixBrasilError) {
       return NextResponse.json(
         {
           success: false,

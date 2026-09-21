@@ -1,133 +1,73 @@
 # SIGNUM 312 — Novidades.store
 
-Conversion-first single-product funnel for `signum312.novidades.store`.
+Funil de venda single-product em produção para `signum312.novidades.store`.
 
-## Current architecture
+## Oferta atual
+
+- Edição Pátina: **R$ 49,90** (preço anterior R$ 99,90)
+- Edição Dourada: **R$ 49,90** (preço anterior R$ 89,90)
+- SIGNUM Duo: **R$ 69,90** (preço anterior R$ 169,90)
+- **Frete grátis para todo o Brasil**
+- Pagamento por PIX com QR Code e Copia e Cola
+
+Os preços também são validados no servidor pelo Commerce Core; o navegador nunca define o valor da cobrança.
+
+## Experiência
 
 - Next.js App Router + TypeScript
-- Mobile-first funnel
-- Native BRL checkout
-- Shared Supabase Commerce Core
-- Commerce storefront: **SIGNUM312-BR**
-- Dual payment-orchestrator integration: XPAYMENTS rollback path + PiXBrasil pilot
-- PiXBrasil Merchant: **Novidades.Store**
-- PiXBrasil Store: **SIGNUM** (MisticPay D0)
-- Legacy/rollback XPAYMENTS Store: **NOVIDADES-BRL**
-- Reserved international Store: **NOVIDADES-EURO**
-- Real product proof images
-- Campaign-aware hero copy
-- Meta Pixel / GTM hooks
-- CEP lookup + fulfillment fields
-- Server-side price and shipping validation
+- Funil mobile-first e editorial premium
+- Fotografias reais das duas edições
+- Hero adaptado ao criativo/campanha
+- Sticky CTA em mobile
+- Checkout BRL próprio
+- CEP e endereço de entrega
+- PIX com QR Code + Copia e Cola
+- Confirmação de pagamento por polling
+- Meta Pixel / GTM
+- Atribuição por UTMs
+- Pedidos persistidos no Commerce Core
 
-## Local development
+## Produção
 
-```bash
-npm install
-cp .env.example .env.local
-npm run dev
-```
-
-## Required production variables
+Variáveis essenciais:
 
 ```text
 NEXT_PUBLIC_SITE_URL=https://signum312.novidades.store
-
 NEXT_PUBLIC_SUPABASE_URL=https://eivqvrfsreaopzlvhadu.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=<server-only service role>
+SUPABASE_SERVICE_ROLE_KEY=<server-only>
 COMMERCE_STOREFRONT_CODE=SIGNUM312-BR
 
-PAYMENT_ORCHESTRATOR=XPAYMENTS
-
+PAYMENT_ORCHESTRATOR=PIXBRASIL
 PIXBRASIL_API_URL=https://api.pixbrasil.org/api/v1
-PIXBRASIL_API_KEY=<server-only merchant S2S key>
+PIXBRASIL_API_KEY=<server-only>
 PIXBRASIL_STORE=SIGNUM
-
-XPAYMENTS_API_URL=https://api.xpayments.digital/api/v1
-XPAYMENTS_BRL_API_KEY=<rollback key bound to NOVIDADES-BRL>
-XPAYMENTS_BRL_STORE=NOVIDADES-BRL
-
-BRL_SHIPPING_CENTS=<integer cents; use 0 for free shipping>
 
 NEXT_PUBLIC_META_PIXEL_ID=<optional>
 NEXT_PUBLIC_GTM_ID=<optional>
 ```
 
-The BRL API key must belong to the **NOVIDADES-BRL** Store and must have:
-- Store ACTIVE
-- currency BRL
-- `payments_write`
-- active PIX routing/provider connection
+O comprador não recebe nomes de providers, Stores, rotas, chaves ou detalhes da infraestrutura.
 
-## BRL checkout flow
+## Fluxo da compra
 
 ```text
-Ad
-  -> signum312.novidades.store
-  -> select Pátina / Dourada / Duo
-  -> /checkout?variant=...
-  -> contact + CPF/CNPJ + delivery address
-  -> server reads listing/variant price from shared Commerce Core
-  -> server creates pending order in Supabase
-  -> POST /api/payments/pix
-  -> server chooses PAYMENT_ORCHESTRATOR
-  -> PiXBrasil pilot: POST https://api.pixbrasil.org/api/v1/payments/charge
-  -> merchant Novidades.Store / store SIGNUM
-  -> store-scoped routing -> MisticPay D0
-  -> SHADOW: persist PaymentIntent/routing/economics without creating a PIX
-  -> LIVE (only after PiXBrasil pilot gate): QR Code / Copia e Cola
-  -> status/webhook confirmation
-  -> paid confirmation
-
-XPAYMENTS remains available as a rollback path while the PiXBrasil pilot is validated.
+Anúncio / conteúdo
+  -> landing SIGNUM 312
+  -> escolha Pátina / Dourada / Duo
+  -> checkout
+  -> dados + endereço
+  -> preço validado no servidor
+  -> pedido criado
+  -> PIX gerado
+  -> QR Code / Copia e Cola
+  -> confirmação
+  -> pedido pago
 ```
-
-Neither the XPAYMENTS key nor the PiXBrasil merchant API key reaches the browser.
-The active orchestrator is selected server-side through `PAYMENT_ORCHESTRATOR`.
-
-## Fulfillment metadata
-
-The storefront sends a whitelisted fulfillment set with the payment:
-- product / SKU / variant
-- storefront
-- Arte&Vida ecosystem
-- shipping CEP, street, number, complement, neighborhood, city, state
-- customer phone
-- UTMs
-- shipping amount
-
-XPAYMENTS should persist this metadata on the Transaction so paid orders can be fulfilled without reconstructing information from the browser.
-
-## Server-side price protection
-
-The browser never chooses an amount.
-
-The payment route resolves the active variant price from the shared Supabase
-`listing_prices` records for storefront `SIGNUM312-BR`.
-
-Current published prices:
-- Pátina: R$ 99,90
-- Dourada: R$ 89,90
-- Duo: R$ 169,90
-
-Shipping is also loaded server-side from the environment. If `BRL_SHIPPING_CENTS` is not configured, checkout blocks payment creation.
-
-## Campaign message match
-
-The landing changes its hero message based on campaign identifiers such as `utm_content`:
-
-- A1 -> 1.700 anos
-- A2 -> Não é apenas um colar
-- A3 -> Roma 312 / Constantino
-- A4 -> Dourada
-- A5 -> Duo
-- A6 -> In Hoc Signo Vinces
-
-Explicit `?variant=patina|gold|duo` overrides the initial selected offer.
 
 ## Tracking
 
-Client-side events:
+Eventos principais:
+
 - PageView
 - ViewContent
 - SelectVariant
@@ -138,63 +78,6 @@ Client-side events:
 - pix_copy
 - Purchase
 
-For production attribution, the next evolution should be server-side webhook/CAPI so purchase measurement does not depend on the buyer keeping the confirmation page open.
+## Design
 
-## Responsive conversion design
-
-The current funnel is optimized for:
-- mobile phones
-- tablets
-- desktop
-
-Key rules:
-- offer appears immediately after hero
-- sticky mobile buy CTA
-- touch targets >= 44px
-- safe-area support
-- reduced-motion support
-- compact checkout summary on mobile
-- CEP autofill with manual fallback
-- price and shipping shown before PIX generation
-
-## International / EUR
-
-The architecture reserves **NOVIDADES-EURO**, but EUR is intentionally not available to buyers until:
-1. EUR retail prices are defined
-2. payment methods are selected
-3. the Store routing is confirmed
-4. end-to-end payment is tested
-
-Recommended first EUR mix: card + MB WAY, processed through XPAYMENTS.
-
-## Go-live gates
-
-1. Connect deployment and domain.
-2. Configure NOVIDADES-BRL API key.
-3. Configure BRL shipping policy.
-4. Persist transaction fulfillment metadata in XPAYMENTS.
-5. Confirm seller identity and contact details in legal pages.
-6. Run low-value controlled PIX test.
-7. Verify provider webhook -> XPAYMENTS succeeded -> checkout paid state.
-8. Verify fulfillment data for the paid transaction.
-9. Verify Pixel/GTM and ideally CAPI.
-10. Replace/augment current source photos with final professional packshots.
-
-
-## PiXBrasil pilot safety
-
-PiXBrasil is integrated behind a server-side switch:
-
-- `PAYMENT_ORCHESTRATOR=XPAYMENTS` — current checkout behavior / rollback path.
-- `PAYMENT_ORCHESTRATOR=PIXBRASIL` — Novidades.Store merchant, store `SIGNUM`.
-
-While PiXBrasil returns `SHADOW_ONLY`, the funnel records the Commerce order and the
-PiXBrasil PaymentIntent reference but does not present a fake QR Code and does not poll
-for payment. The checkout renders a technical SHADOW validation state instead.
-
-The production switch to PiXBrasil must only happen after:
-1. the merchant S2S key is configured in Vercel;
-2. the PiXBrasil API is deployed with the tested runtime;
-3. `SIGNUM` resolves to `misticpay-primary` / D0;
-4. live provider execution is explicitly enabled for the pilot;
-5. a controlled low-value payment confirms create -> webhook -> status -> settlement.
+A direção visual é `luxury editorial × artefato × história × e-commerce`, com preto profundo, marfim, ouro envelhecido e verde-pátina. O funil evita linguagem técnica, estados de teste e referências internas na superfície do comprador.

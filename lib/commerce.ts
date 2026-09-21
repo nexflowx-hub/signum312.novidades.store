@@ -67,6 +67,14 @@ type OrderRow = {
   storefront_id: string | null;
 };
 
+type PaymentRow = {
+  id: string;
+  order_id: string;
+  provider: string;
+  provider_ref: string | null;
+  status: string;
+};
+
 type OrderItemRow = {
   id: string;
   order_id: string;
@@ -454,7 +462,13 @@ export async function loadPendingOrderContext(reference: string) {
     );
   }
 
-  return { order, item };
+  const payments = await rest<PaymentRow[]>(
+    "payments?select=id,order_id,provider,provider_ref,status&order_id=eq." +
+      encodeURIComponent(order.id) +
+      "&limit=1",
+  );
+
+  return { order, item, payment: payments[0] ?? null };
 }
 
 export async function markOrderPaid(

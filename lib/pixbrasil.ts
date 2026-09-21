@@ -81,6 +81,7 @@ export type PixBrasilResult = {
       qrCodeBase64?: string;
       qrCodeUrl?: string;
       qrCode?: string;
+      qrCodeImage?: string;
       expiresAt?: string | null;
     };
     providerPaymentId?: string;
@@ -194,7 +195,11 @@ export function normalizePixBrasilAction(payload: PixBrasilResult) {
   ).trim();
 
   let qrCode = String(
-    action.qrCodeBase64 || action.qrCodeUrl || action.qrCode || "",
+    action.qrCodeBase64 ||
+      action.qrCodeUrl ||
+      action.qrCode ||
+      action.qrCodeImage ||
+      "",
   ).trim();
 
   if (
@@ -224,4 +229,64 @@ export function normalizePixBrasilAction(payload: PixBrasilResult) {
     economics: data.economics ?? null,
     release: data.release ?? null,
   };
+}
+
+
+export async function getPixBrasilPayment(paymentIntentId: string) {
+  assertConfigured();
+
+  const id = String(paymentIntentId || "").trim();
+  if (!id) {
+    throw new PixBrasilError(
+      400,
+      "PIX_PAYMENT_ID_REQUIRED",
+      "Identificador do pagamento ausente.",
+    );
+  }
+
+  const response = await fetch(
+    API_URL + "/payments/" + encodeURIComponent(id),
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${API_KEY}`,
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    },
+  );
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const root = payload as Record<string, any>;
+    const error = root?.error ?? root;
+
+    throw new PixBrasilError(
+      response.status,
+      String(error?.code || "PIX_STATUS_ERROR"),
+      String(
+        error?.message ||
+          root?.message ||
+          "Não foi possível consultar o pagamento.",
+      ),
+      payload,
+    );
+  }
+
+  return payload as {
+    success: true;
+    data: {
+      paymentIntentId: string;
+      reference?: string | null;
+      status: string;
+      completedAt?: string | null;
+    };
+  };
+}
+
+export function isPixBrasilPaidStatus(status: string) {
+  return ["SUCCEEDED", "PAID", "COMPLETED"].includes(
+    String(status || "").trim().toUpperCase(),
+  );
 }
