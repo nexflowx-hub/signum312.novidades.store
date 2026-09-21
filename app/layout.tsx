@@ -1,24 +1,64 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import "./globals.css";
+import "./funnel-v2.css";
 
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL || "https://signum312.novidades.store";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: "SIGNUM 312 — Um símbolo que atravessa o tempo",
+  title: {
+    default: "SIGNUM 312 — Fé, força e propósito",
+    template: "%s · SIGNUM 312",
+  },
   description:
-    "SIGNUM 312: medalhas contemporâneas inspiradas em fé, coragem, propósito e na tradição de In Hoc Signo Vinces.",
+    "Conheça SIGNUM 312: medalha contemporânea com cruz em relevo, cordão ajustável e acabamentos Pátina ou Dourada. Escolha o símbolo que representa você.",
+  keywords: [
+    "SIGNUM 312",
+    "colar com medalha",
+    "medalha com cruz",
+    "colar simbólico",
+    "colar vintage",
+    "colar dourado",
+    "colar pátina",
+    "presente com significado",
+  ],
   alternates: { canonical: "/" },
+  robots: {
+    index: true,
+    follow: true,
+  },
   openGraph: {
-    title: "SIGNUM 312",
-    description: "Um símbolo que atravessa o tempo.",
+    title: "SIGNUM 312 — Fé, força e propósito",
+    description:
+      "Duas edições. Um mesmo símbolo. Descubra SIGNUM 312 e escolha entre Pátina, Dourada ou Duo.",
     url: siteUrl,
     siteName: "SIGNUM 312",
     locale: "pt_BR",
     type: "website",
+    images: [
+      {
+        url: "/product-patina.webp",
+        width: 600,
+        height: 822,
+        alt: "SIGNUM 312 — Edição Pátina",
+      },
+    ],
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "SIGNUM 312 — Fé, força e propósito",
+    description: "Duas edições. Um mesmo símbolo. Pátina, Dourada ou Duo.",
+    images: ["/product-patina.webp"],
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#090806",
+  colorScheme: "dark light",
 };
 
 export default function RootLayout({
